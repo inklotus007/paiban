@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#4f6ef7">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>值班排班表</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗓️</text></svg>">
+<style>
+  :root{--p:#4f6ef7;--pd:#3d5af1;--txt:#2c3e50;--mut:#8a94a6;--bd:#e8ecf3;--fest:#e64545;
+    --sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px)}
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{font-family:"PingFang SC","Microsoft YaHei",sans-serif;background:#f2f5fa;color:var(--txt);
+    overscroll-behavior-y:none}
+  button{font-family:inherit;border:none;cursor:pointer}
+  input,select{font-family:inherit}
+
+  /* ===== 顶栏 ===== */
+  .topbar{position:sticky;top:0;z-index:50;background:linear-gradient(135deg,#4f6ef7,#6d8bff);
+    color:#fff;padding:calc(var(--sat) + 12px) 16px 14px;border-radius:0 0 20px 20px;
+    box-shadow:0 4px 16px rgba(79,110,247,.35)}
+  .tb-date{font-size:13px;opacity:.9;display:flex;justify-content:space-between;align-items:center}
+  .tb-duty{margin-top:8px;font-size:22px;font-weight:700;display:flex;align-items:center;gap:8px}
+  .tb-duty .sub{font-size:12px;font-weight:400;opacity:.85;margin-top:2px}
+  .tb-fest{margin-top:6px;font-size:13px;background:rgba(255,255,255,.18);display:inline-block;
+    padding:3px 10px;border-radius:20px}
+
+  main{padding:14px 14px calc(78px + var(--sab));max-width:640px;margin:0 auto}
+  .page{display:none;animation:fade .22s}
+  .page.on{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  .dot{width:10px;height:10px;border-radius:50%;display:inline-block;flex:none}
+  .dot.big{width:14px;height:14px}
+
+  /* ===== 今日页 ===== */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+  .mini{background:#fff;border-radius:14px;padding:14px;box-shadow:0 2px 10px rgba(31,45,61,.06)}
+  .mini .k{font-size:12px;color:var(--mut)}
+  .mini .v{font-size:20px;font-weight:700;margin-top:4px}
+  .card{background:#fff;border-radius:16px;padding:16px;box-shadow:0 2px 10px rgba(31,45,61,.06);margin-top:14px}
+  .card h3{font-size:15px;margin-bottom:10px}
+  .nxt-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px dashed #f0f3f8;font-size:14px}
+  .nxt-row:last-child{border:none}
+  .nxt-date{width:86px;color:#5a6a85;flex:none}
+  .nxt-team{flex:1;display:flex;align-items:center;gap:7px;min-width:0}
+  .nxt-fest{flex:none;font-size:12px;color:var(--fest)}
+
+  /* ===== 排班页 ===== */
+  .chips{display:flex;gap:8px;overflow-x:auto;padding:2px 0 4px;-webkit-overflow-scrolling:touch}
+  .chip{flex:none;padding:8px 16px;border-radius:20px;background:#fff;border:1px solid var(--bd);
+    font-size:13px;color:#5a6a85}
+  .chip.on{background:var(--p);border-color:var(--p);color:#fff}
+  .month-h{display:flex;align-items:center;gap:8px;margin:18px 2px 10px;font-size:16px;font-weight:700}
+  .month-h::before{content:'';width:4px;height:16px;background:var(--p);border-radius:2px}
+  .day-card{background:#fff;border-radius:14px;padding:12px 14px;margin-bottom:10px;
+    display:flex;align-items:center;gap:12px;box-shadow:0 1px 6px rgba(31,45,61,.05);position:relative;overflow:hidden}
+  .day-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--tc,#ddd)}
+  .day-card.legal{background:#fff2f2}
+  .day-card.today{outline:2px solid var(--p)}
+  .dc-date{width:78px;flex:none;text-align:center}
+  .dc-date .md{font-size:17px;font-weight:700}
+  .dc-date .wk{font-size:12px;color:var(--mut)}
+  .dc-date .wk.wk{color:#d97706}
+  .dc-mid{flex:1;min-width:0}
+  .dc-team{font-size:15px;font-weight:600;display:flex;align-items:center;gap:7px}
+  .dc-lunar{font-size:12px;color:var(--mut);margin-top:2px}
+  .dc-fest{flex:none;text-align:right}
+  .femoji{font-size:20px}
+  .legal-tag{font-size:10px;color:#fff;background:var(--fest);border-radius:8px;padding:1px 6px;display:inline-block;margin-top:3px}
+  .today-pill{font-size:10px;background:var(--p);color:#fff;border-radius:8px;padding:1px 6px;margin-left:4px}
+
+  details.festbox{margin-top:16px;background:#fff;border-radius:14px;box-shadow:0 2px 10px rgba(31,45,61,.06)}
+  details.festbox summary{padding:14px 16px;font-size:15px;font-weight:600;list-style:none;display:flex;justify-content:space-between;align-items:center}
+  details.festbox summary::after{content:'▸';color:var(--mut);transition:.2s}
+  details.festbox[open] summary::after{transform:rotate(90deg)}
+  .fest-item{display:flex;align-items:center;gap:8px;padding:9px 16px;border-top:1px dashed #f0f3f8;font-size:13px}
+  .fest-item .fd{color:#5a6a85;width:104px;flex:none}
+
+  /* ===== 日历页 ===== */
+  .cal-head{display:flex;align-items:center;justify-content:space-between;margin:4px 0 10px}
+  .cal-head .ym{font-size:18px;font-weight:700}
+  .cal-btns{display:flex;gap:8px}
+  .cbtn{width:38px;height:38px;border-radius:12px;background:#fff;border:1px solid var(--bd);font-size:16px;color:#42506b}
+  .cbtn.wide{width:auto;padding:0 14px;font-size:13px}
+  .cal-grid{background:#fff;border-radius:16px;padding:12px 10px;box-shadow:0 2px 10px rgba(31,45,61,.06)}
+  .cal-wk{display:grid;grid-template-columns:repeat(7,1fr);text-align:center;font-size:12px;color:var(--mut);padding-bottom:8px}
+  .cal-wk b:last-child,.cal-wk b:first-child{color:#e08}
+  .cal-days{display:grid;grid-template-columns:repeat(7,1fr);row-gap:4px}
+  .cell{aspect-ratio:1/1.05;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    border-radius:12px;position:relative}
+  .cell .n{font-size:15px;font-weight:600}
+  .cell.blank .n{visibility:hidden}
+  .cell .d{width:5px;height:5px;border-radius:50%;margin-top:3px}
+  .cell.we .n{color:#d97706}
+  .cell.legal .n{color:var(--fest)}
+  .cell.today{background:var(--p)}
+  .cell.today .n{color:#fff}
+  .cell.today .d{background:#fff!important}
+  .cal-legend{display:flex;gap:14px;justify-content:center;font-size:12px;color:var(--mut);margin-top:12px;flex-wrap:wrap}
+  .cal-legend span{display:flex;align-items:center;gap:5px}
+
+  /* ===== 设置页 ===== */
+  .field{margin-bottom:12px}
+  .field label{font-size:12px;color:var(--mut);display:block;margin-bottom:5px}
+  input,select{width:100%;border:1px solid var(--bd);border-radius:10px;padding:12px;font-size:15px;
+    background:#fbfcff;color:var(--txt);outline:none}
+  input:focus,select:focus{border-color:var(--p);background:#fff}
+  .team-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .team-row .ord{font-size:12px;color:#5a6a85;width:44px;flex:none}
+  .team-row input{padding:11px 10px;font-size:14px}
+  .del{width:34px;height:34px;flex:none;border-radius:10px;background:#fff0f0;color:var(--fest);font-size:14px}
+  .del:disabled{opacity:.3}
+  .btn{width:100%;padding:14px;border-radius:12px;font-size:15px;font-weight:600;margin-top:10px}
+  .btn.p{background:var(--p);color:#fff;box-shadow:0 4px 12px rgba(79,110,247,.3)}
+  .btn.g{background:#fff;color:#42506b;border:1px solid var(--bd)}
+  .btn:active{opacity:.8}
+  .stat2{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+  .stat2 .mini .v{font-size:17px}
+  .tips{font-size:11px;color:var(--mut);line-height:1.7;margin-top:14px}
+
+  /* ===== 底部导航 ===== */
+  .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:60;background:#fff;
+    display:flex;padding:6px 0 calc(6px + var(--sab));box-shadow:0 -2px 12px rgba(31,45,61,.08)}
+  .tab{flex:1;background:none;display:flex;flex-direction:column;align-items:center;gap:2px;
+    font-size:11px;color:var(--mut);padding:4px 0}
+  .tab .ico{font-size:21px;line-height:1}
+  .tab.on{color:var(--p);font-weight:600}
+
+  /* ===== 详情弹层 ===== */
+  .mask{position:fixed;inset:0;background:rgba(20,30,50,.45);z-index:80;opacity:0;pointer-events:none;transition:.25s}
+  .mask.on{opacity:1;pointer-events:auto}
+  .sheet{position:fixed;left:0;right:0;bottom:0;z-index:90;background:#fff;border-radius:22px 22px 0 0;
+    padding:20px 20px calc(24px + var(--sab));transform:translateY(105%);transition:.28s cubic-bezier(.3,1,.4,1)}
+  .sheet.on{transform:none}
+  .sh-date{font-size:22px;font-weight:700;display:flex;align-items:center;gap:8px}
+  .sh-lunar{color:var(--mut);font-size:13px;margin-top:4px}
+  .sh-team{margin-top:14px;background:#f6f8ff;border-radius:14px;padding:14px;display:flex;align-items:center;gap:10px}
+  .sh-team .who{font-size:18px;font-weight:700}
+  .sh-fest{margin-top:12px;display:flex;flex-wrap:wrap;gap:8px}
+  .badge{background:#fff5f5;color:var(--fest);border:1px solid #f5c6c6;border-radius:20px;padding:4px 12px;font-size:13px}
+  .badge.legal{background:var(--fest);color:#fff;font-weight:600}
+  .sh-close{position:absolute;top:14px;right:14px;width:32px;height:32px;border-radius:50%;
+    background:#f1f4fb;color:#5a6a85;font-size:14px}
+
+  @media print{
+    .topbar,.tabbar,.chips,.no-print{display:none!important}
+    main{padding:0}
+    .page{display:none!important}
+    #page-list{display:block!important}
+    .day-card{box-shadow:none;border:1px solid #eee;page-break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+
+<!-- 顶栏：今日值班 -->
+<header class="topbar" id="topbar"></header>
+
+<main>
+  <!-- ===== 今日 ===== -->
+  <section class="page on" id="page-today">
+    <div class="grid2">
+      <div class="mini"><div class="k">农历</div><div class="v" id="mLunar">—</div></div>
+      <div class="mini"><div class="k">今天星期</div><div class="v" id="mWeek">—</div></div>
+    </div>
+    <div class="card">
+      <h3>📆 未来 7 天值班</h3>
+      <div id="nextList"></div>
+    </div>
+  </section>
+
+  <!-- ===== 排班 ===== -->
+  <section class="page" id="page-list">
+    <div class="chips" id="chips"></div>
+    <div id="listBody"></div>
+    <details class="festbox no-print">
+      <summary>🎊 节日值班速查</summary>
+      <div id="festList"></div>
+    </details>
+    <div class="tips no-print">点击任意一天可查看详情 · 法定节假日调休安排以国务院通知为准</div>
+  </section>
+
+  <!-- ===== 日历 ===== -->
+  <section class="page" id="page-cal">
+    <div class="cal-head">
+      <div class="ym" id="calYm">—</div>
+      <div class="cal-btns">
+        <button class="cbtn wide" id="calTodayBtn">今天</button>
+        <button class="cbtn" id="calPrev">‹</button>
+        <button class="cbtn" id="calNext">›</button>
+      </div>
+    </div>
+    <div class="cal-grid">
+      <div class="cal-wk"><b>日</b><b>一</b><b>二</b><b>三</b><b>四</b><b>五</b><b>六</b></div>
+      <div class="cal-days" id="calDays"></div>
+    </div>
+    <div class="cal-legend" id="calLegend"></div>
+  </section>
+
+  <!-- ===== 设置 ===== -->
+  <section class="page" id="page-set">
+    <div class="card" style="margin-top:0">
+      <h3>⚙️ 排班设置</h3>
+      <div class="field"><label>开始日期</label><input type="date" id="startDate"></div>
+      <div class="field"><label>结束日期</label><input type="date" id="endDate"></div>
+      <div class="field"><label>起始值班组</label><select id="startTeam"></select></div>
+      <div class="field" style="margin-top:16px"><label>值班分组（按轮换顺序）</label>
+        <div id="teamList"></div>
+        <button class="btn g" id="addTeamBtn" style="margin-top:4px">＋ 添加一组</button>
+      </div>
+      <button class="btn p" id="genBtn">🔄 重新生成排班表</button>
+    </div>
+    <div class="card">
+      <h3>📊 班次统计</h3>
+      <div class="stat2" id="statsBox"></div>
+    </div>
+    <div class="card">
+      <h3>📤 导出</h3>
+      <button class="btn g" id="csvBtn">⬇️ 导出 CSV（Excel可打开）</button>
+      <button class="btn g" id="printBtn">🖨️ 打印排班表</button>
+    </div>
+    <div class="tips">设置会自动保存在本机，下次打开不用重新填写。<br>法定节假日（元旦/春节/清明/劳动/端午/中秋/国庆）的连休调休以国务院每年发布的通知为准。</div>
+  </section>
+</main>
+
+<!-- 底部导航 -->
+<nav class="tabbar">
+  <button class="tab on" data-p="page-today"><span class="ico">🏠</span>今日</button>
+  <button class="tab" data-p="page-list"><span class="ico">📋</span>排班</button>
+  <button class="tab" data-p="page-cal"><span class="ico">📅</span>日历</button>
+  <button class="tab" data-p="page-set"><span class="ico">⚙️</span>设置</button>
+</nav>
+
+<!-- 日详情弹层 -->
+<div class="mask" id="mask"></div>
+<div class="sheet" id="sheet">
+  <button class="sh-close" id="shClose">✕</button>
+  <div class="sh-date" id="shDate"></div>
+  <div class="sh-lunar" id="shLunar"></div>
+  <div class="sh-team" id="shTeam"></div>
+  <div class="sh-fest" id="shFest"></div>
+</div>
+
+<script>
+/* ================= 农历数据（1900–2100） ================= */
+const lunarInfo=[
+0x04bd8,0x04ae0,0x0a570,0x054d5,0x0d260,0x0d950,0x16554,0x056a0,0x09ad0,0x055d2,
+0x04ae0,0x0a5b6,0x0a4d0,0x0d250,0x1d255,0x0b540,0x0d6a0,0x0ada2,0x095b0,0x14977,
+0x04970,0x0a4b0,0x0b4b5,0x06a50,0x06d40,0x1ab54,0x02b60,0x09570,0x052f2,0x04970,
+0x06566,0x0d4a0,0x0ea50,0x06e95,0x05ad0,0x02b60,0x186e3,0x092e0,0x1c8d7,0x0c950,
+0x0d4a0,0x1d8a6,0x0b550,0x056a0,0x1a5b4,0x025d0,0x092d0,0x0d2b2,0x0a950,0x0b557,
+0x06ca0,0x0b550,0x15355,0x04da0,0x0a5b0,0x14573,0x052b0,0x0a9a8,0x0e950,0x06aa0,
+0x0aea6,0x0ab50,0x04b60,0x0aae4,0x0a570,0x05260,0x0f263,0x0d950,0x05b57,0x056a0,
+0x096d0,0x04dd5,0x04ad0,0x0a4d0,0x0d4d4,0x0d250,0x0d558,0x0b540,0x0b6a0,0x195a6,
+0x095b0,0x049b0,0x0a974,0x0a4b0,0x0b27a,0x06a50,0x06d40,0x0af46,0x0ab60,0x09570,
+0x04af5,0x04970,0x064b0,0x074a3,0x0ea50,0x06b58,0x05ac0,0x0ab60,0x096d5,0x092e0,
+0x0c960,0x0d954,0x0d4a0,0x0da50,0x07552,0x056a0,0x0abb7,0x025d0,0x092d0,0x0cab5,
+0x0a950,0x0b4a0,0x0baa4,0x0ad50,0x055d9,0x04ba0,0x0a5b0,0x15176,0x052b0,0x0a930,
+0x07954,0x06aa0,0x0ad50,0x05b52,0x04b60,0x0a6e6,0x0a4e0,0x0d260,0x0ea65,0x0d530,
+0x05aa0,0x076a3,0x096d0,0x04afb,0x04ad0,0x0a4d0,0x1d0b6,0x0d250,0x0d520,0x0dd45,
+0x0b5a0,0x056d0,0x055b2,0x049b0,0x0a577,0x0a4b0,0x0aa50,0x1b255,0x06d20,0x0ada0,
+0x14b63,0x09370,0x049f8,0x04970,0x064b0,0x168a6,0x0ea50,0x06b20,0x1a6c4,0x0aae0,
+0x0a2e0,0x0d2e3,0x0c960,0x0d557,0x0d4a0,0x0da50,0x05d55,0x056a0,0x0a6d0,0x055d4,
+0x052d0,0x0a9b8,0x0a950,0x0b4a0,0x0b6a6,0x0ad50,0x055a0,0x0aba4,0x0a5b0,0x052b0,
+0x0b273,0x06930,0x07337,0x06aa0,0x0ad50,0x14b55,0x04b60,0x0a570,0x054e4,0x0d160,
+0x0e968,0x0d520,0x0daa0,0x16aa6,0x056d0,0x04ae0,0x0a9d4,0x0a2d0,0x0d150,0x0f252,
+0x0d520];
+const sTermInfo=[0,21208,42467,63836,85337,107014,128867,150921,173149,195551,
+218072,240693,263343,285989,308563,331033,353350,375494,397447,419210,
+440795,462224,483532,504758];
+function lYearDays(y){let s=348;for(let i=0x8000;i>0x8;i>>=1)s+=(lunarInfo[y-1900]&i)?1:0;return s+leapDays(y);}
+function leapMonth(y){return lunarInfo[y-1900]&0xf;}
+function leapDays(y){return leapMonth(y)?((lunarInfo[y-1900]&0x10000)?30:29):0;}
+function monthDays(y,m){return(lunarInfo[y-1900]&(0x10000>>m))?30:29;}
+function solarTermDay(y,n){return new Date(31556925974.7*(y-1900)+sTermInfo[n]*60000+Date.UTC(1900,0,6,2,5)).getUTCDate();}
+function solarToLunar(y,m,d){
+  let offset=Math.floor((Date.UTC(y,m-1,d)-Date.UTC(1900,0,31))/86400000);
+  let i,temp=0;
+  for(i=1900;i<2101&&offset>0;i++){temp=lYearDays(i);offset-=temp;}
+  if(offset<0){offset+=temp;i--;}
+  const year=i,leap=leapMonth(year);let isLeap=false;
+  for(i=1;i<13&&offset>0;i++){
+    if(leap>0&&i===leap+1&&!isLeap){--i;isLeap=true;temp=leapDays(year);}
+    else temp=monthDays(year,i);
+    if(isLeap&&i===leap+1)isLeap=false;
+    offset-=temp;
+  }
+  if(offset===0&&leap>0&&i===leap+1){if(isLeap)isLeap=false;else{isLeap=true;--i;}}
+  if(offset<0){offset+=temp;--i;}
+  return{year,month:i,day:offset+1,isLeap};
+}
+const CN_NUM=['一','二','三','四','五','六','七','八','九','十'];
+function lunarDayName(d){
+  if(d===10)return'初十';if(d===20)return'二十';if(d===30)return'三十';
+  if(d<10)return'初'+CN_NUM[d-1];
+  if(d<20)return'十'+CN_NUM[d-11];
+  return'廿'+CN_NUM[d-21];
+}
+function lunarMonthName(m,leap){const n=['正','二','三','四','五','六','七','八','九','十','冬','腊'];return(leap?'闰':'')+n[m-1]+'月';}
+
+/* ================= 节日 ================= */
+function nthWeekday(y,m,wd,n){const off=(wd-new Date(y,m-1,1).getDay()+7)%7;return 1+off+(n-1)*7;}
+function getFestivals(y,m,d){
+  const list=[];const add=(name,emoji,legal)=>list.push({name,emoji,legal:!!legal});
+  if(m===1&&d===1)add('元旦','🎉',true);
+  if(m===2&&d===14)add('情人节','💝');
+  if(m===3&&d===8)add('妇女节','🌸');
+  if(m===3&&d===12)add('植树节','🌱');
+  if(m===5&&d===1)add('劳动节','🌷',true);
+  if(m===5&&d===4)add('青年节','✊');
+  if(m===5&&d===nthWeekday(y,5,0,2))add('母亲节','💐');
+  if(m===6&&d===1)add('儿童节','🎈');
+  if(m===6&&d===nthWeekday(y,6,0,3))add('父亲节','👨');
+  if(m===7&&d===1)add('建党节','🚩');
+  if(m===8&&d===1)add('建军节','🎖️');
+  if(m===9&&d===10)add('教师节','📚');
+  if(m===10&&d===1)add('国庆节','🇨🇳',true);
+  if(m===12&&d===25)add('圣诞节','🎄');
+  if(m===4&&d===solarTermDay(y,6))add('清明节','🌿',true);
+  if(m===12&&d===solarTermDay(y,23))add('冬至','❄️');
+  const l=solarToLunar(y,m,d);
+  if(!l.isLeap){
+    if(l.month===1&&l.day===1)add('春节','🧨',true);
+    if(l.month===1&&l.day===15)add('元宵节','🏮');
+    if(l.month===5&&l.day===5)add('端午节','🐉',true);
+    if(l.month===7&&l.day===7)add('七夕节','💕');
+    if(l.month===8&&l.day===15)add('中秋节','🥮',true);
+    if(l.month===9&&l.day===9)add('重阳节','🍂');
+    if(l.month===12&&l.day===8)add('腊八节','🍲');
+    if(l.month===12&&l.day===23)add('小年','🧹');
+  }
+  const t=new Date(y,m-1,d+1);
+  const l2=solarToLunar(t.getFullYear(),t.getMonth()+1,t.getDate());
+  if(!l2.isLeap&&l2.month===1&&l2.day===1)add('除夕','🏮',true);
+  return list;
+}
+
+/* ================= 核心 ================= */
+const WEEK=['周日','周一','周二','周三','周四','周五','周六'];
+const COLORS=['#4f6ef7','#f59e0b','#10b981','#8b5cf6','#ef4444','#06b6d4','#ec4899','#84cc16'];
+const DEF={start:'2026-09-21',end:'2027-09-20',startIdx:0,
+  teams:[['李春琴','张莉'],['肖秀萍','杜欢欢'],['张娟娟','陈花']]};
+
+let cfg=load();
+let days=[],dayMap={},filter=-1,calY,calM;
+
+function load(){
+  try{const s=JSON.parse(localStorage.getItem('paiban_cfg'));
+    if(s&&s.teams&&s.teams.length)return s;}catch(e){}
+  return JSON.parse(JSON.stringify(DEF));
+}
+function save(){try{localStorage.setItem('paiban_cfg',JSON.stringify(cfg));}catch(e){}}
+
+const $=id=>document.getElementById(id);
+const mod=(n,m)=>((n%m)+m)%m;
+const pad=n=>n<10?'0'+n:''+n;
+const colorOf=i=>COLORS[i%COLORS.length];
+function teamName(t){return t.map(s=>(s||'').trim()).filter(Boolean).join('、')||'待定';}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function parseDate(s){const p=s.split('-').map(Number);return new Date(p[0],p[1]-1,p[2]);}
+function fmtMD(dt){return(dt.getMonth()+1)+'月'+dt.getDate()+'日';}
+function dutyIdx(dt){const s=parseDate(cfg.start);return mod(cfg.startIdx+Math.round((dt-s)/864e5),cfg.teams.length);}
+function lunarStr(y,m,d){const l=solarToLunar(y,m,d);return l.day===1?lunarMonthName(l.month,l.isLeap):lunarDayName(l.day);}
+
+function generate(){
+  const s=parseDate(cfg.start),e=parseDate(cfg.end);
+  days=[];dayMap={};
+  if(s&&e&&e>=s&&(e-s)/864e5<=3700){
+    const cur=new Date(s);
+    while(cur<=e){
+      const y=cur.getFullYear(),m=cur.getMonth()+1,d=cur.getDate();
+      const fests=getFestivals(y,m,d);
+      const o={y,m,d,date:new Date(cur),week:WEEK[cur.getDay()],
+        we:cur.getDay()===0||cur.getDay()===6,lunar:lunarStr(y,m,d),fests,
+        legal:fests.some(f=>f.legal),teamIdx:dutyIdx(cur)};
+      days.push(o);dayMap[y+'-'+m+'-'+d]=o;
+      cur.setDate(cur.getDate()+1);
+    }
+  }
+  save();renderAll();
+}
+
+/* ================= 顶栏 & 今日 ================= */
+function renderTopbar(){
+  const t=new Date();t.setHours(0,0,0,0);
+  const y=t.getFullYear(),m=t.getMonth()+1,d=t.getDate();
+  const idx=dutyIdx(t),fests=getFestivals(y,m,d),l=solarToLunar(y,m,d);
+  const lun=l.day===1?lunarMonthName(l.month,l.isLeap):lunarDayName(l.day);
+  const s=parseDate(cfg.start),diff=Math.round((t-s)/864e5);
+  let sub='';
+  if(diff<0)sub=`（${cfg.start} 开始值班，还有${-diff}天）`;
+  else if(diff>days.length-1&&days.length)sub='';
+  $('topbar').innerHTML=`
+    <div class="tb-date"><span>${y}年${m}月${d}日 · 农历${lun}</span><span>${WEEK[t.getDay()]}</span></div>
+    <div class="tb-duty"><span class="dot big" style="background:#fff"></span>
+      <div>今日值班：${esc(teamName(cfg.teams[idx]))}<div class="sub">第${idx+1}组 · ${cfg.teams.length}天一轮</div></div></div>
+    ${fests.length?`<div class="tb-fest">${fests.map(f=>f.emoji+' '+f.name).join('　')}</div>`:''}`;
+  $('mWeek').textContent=WEEK[t.getDay()];
+  $('mLunar').textContent=lun;
+}
+function renderNext(){
+  const t=new Date();t.setHours(0,0,0,0);
+  let html='';
+  for(let i=1;i<=7;i++){
+    const dt=new Date(t);dt.setDate(dt.getDate()+i);
+    const y=dt.getFullYear(),m=dt.getMonth()+1,d=dt.getDate();
+    const idx=dutyIdx(dt),fests=getFestivals(y,m,d);
+    html+=`<div class="nxt-row"><span class="nxt-date">${fmtMD(dt)} ${WEEK[dt.getDay()]}</span>
+      <span class="nxt-team"><span class="dot" style="background:${colorOf(idx)}"></span>${esc(teamName(cfg.teams[idx]))}</span>
+      <span class="nxt-fest">${fests.map(f=>f.emoji).join('')}</span></div>`;
+  }
+  $('nextList').innerHTML=html;
+}
+
+/* ================= 排班列表 ================= */
+function renderChips(){
+  $('chips').innerHTML=`<button class="chip${filter===-1?' on':''}" data-f="-1">全部</button>`+
+    cfg.teams.map((t,i)=>`<button class="chip${filter===i?' on':''}" data-f="${i}">
+      <span class="dot" style="background:${colorOf(i)};margin-right:5px"></span>${esc(teamName(t))}</button>`).join('');
+}
+function renderList(){
+  const byMonth=new Map();
+  days.forEach(r=>{const k=r.y+'-'+r.m;(byMonth.get(k)||byMonth.set(k,[]).get(k)).push(r);});
+  const today=new Date();today.setHours(0,0,0,0);
+  let html='';
+  byMonth.forEach((list,key)=>{
+    const[y,m]=key.split('-').map(Number);
+    html+=`<div class="month-h">${y}年${m}月</div>`;
+    list.forEach(r=>{
+      const isT=r.date.getTime()===today.getTime();
+      const cls='day-card'+(r.legal?' legal':'')+(isT?' today':'');
+      html+=`<div class="${cls}" style="--tc:${colorOf(r.teamIdx)}" data-k="${r.y}-${r.m}-${r.d}">
+        <div class="dc-date"><div class="md">${r.m}/${r.d}${isT?'<span class="today-pill">今</span>':''}</div>
+          <div class="wk${r.we?' wk':''}">${r.week}</div></div>
+        <div class="dc-mid"><div class="dc-team"><span class="dot" style="background:${colorOf(r.teamIdx)}"></span>${esc(teamName(cfg.teams[r.teamIdx]))}</div>
+          <div class="dc-lunar">农历 ${r.lunar}</div></div>
+        <div class="dc-fest">${r.fests.length?`<div class="femoji">${r.fests.map(f=>f.emoji).join('')}</div>${r.legal?'<span class="legal-tag">法定</span>':''}`:''}</div>
+      </div>`;
+    });
+  });
+  $('listBody').innerHTML=html||'<div class="tips" style="text-align:center;padding:40px 0">暂无排班数据，请到「设置」生成</div>';
+  // 节日速查
+  const fs=days.filter(r=>r.fests.length);
+  $('festList').innerHTML=fs.map(r=>`<div class="fest-item"><span class="fd">${r.y}-${pad(r.m)}-${pad(r.d)}</span>
+    <span>${r.fests.map(f=>f.emoji+' '+f.name).join('　')}</span>
+    <span style="margin-left:auto"><span class="dot" style="background:${colorOf(r.teamIdx)}"></span>
+    <b style="font-size:12px">${esc(teamName(cfg.teams[r.teamIdx]))}</b></span></div>`).join('');
+}
+
+/* ================= 日历 ================= */
+function renderCal(){
+  $('calYm').textContent=calY+'年'+calM+'月';
+  const first=new Date(calY,calM-1,1),startWd=first.getDay();
+  const dim=new Date(calY,calM,0).getDate();
+  const today=new Date();today.setHours(0,0,0,0);
+  let html='';
+  for(let i=0;i<startWd;i++)html+='<div class="cell blank"><span class="n">·</span></div>';
+  for(let d=1;d<=dim;d++){
+    const dt=new Date(calY,calM-1,d);
+    const idx=dutyIdx(dt),fests=getFestivals(calY,calM,d);
+    const legal=fests.some(f=>f.legal);
+    const isT=dt.getTime()===today.getTime();
+    const cls='cell'+(dt.getDay()===0||dt.getDay()===6?' we':'')+(legal?' legal':'')+(isT?' today':'');
+    html+=`<div class="${cls}" data-k="${calY}-${calM}-${d}"><span class="n">${d}</span>
+      <span class="d" style="background:${colorOf(idx)}"></span></div>`;
+  }
+  $('calDays').innerHTML=html;
+  $('calLegend').innerHTML=cfg.teams.map((t,i)=>
+    `<span><span class="dot" style="background:${colorOf(i)}"></span>${esc(teamName(t))}</span>`).join('')+
+    '<span><span style="color:var(--fest);font-weight:700">红字</span>法定假日</span>';
+}
+
+/* ================= 统计 & 设置 ================= */
+function renderStats(){
+  const c=new Array(cfg.teams.length).fill(0);
+  days.forEach(r=>c[r.teamIdx]++);
+  $('statsBox').innerHTML=`<div class="mini"><div class="k">排班总天数</div><div class="v">${days.length}</div></div>`+
+    cfg.teams.map((t,i)=>`<div class="mini" style="border-top:3px solid ${colorOf(i)}">
+      <div class="k">第${i+1}组</div><div class="v">${c[i]} 班</div>
+      <div style="font-size:11px;color:var(--mut);margin-top:2px">${esc(teamName(t))}</div></div>`).join('');
+}
+function renderTeamInputs(){
+  $('teamList').innerHTML=cfg.teams.map((t,i)=>`
+    <div class="team-row"><span class="dot" style="background:${colorOf(i)}"></span>
+      <span class="ord">第${i+1}组</span>
+      <input data-t="${i}" data-i="0" value="${esc(t[0]||'')}" placeholder="成员1">
+      <input data-t="${i}" data-i="1" value="${esc(t[1]||'')}" placeholder="成员2">
+      <button class="del" data-del="${i}" ${cfg.teams.length<=1?'disabled':''}>✕</button></div>`).join('');
+  $('startTeam').innerHTML=cfg.teams.map((t,i)=>`<option value="${i}">第${i+1}组（${esc(teamName(t))}）</option>`).join('');
+  $('startTeam').value=cfg.startIdx;
+}
+function renderAll(){
+  renderTopbar();renderNext();renderChips();renderList();renderCal();renderStats();renderTeamInputs();
+}
+
+/* ================= 详情弹层 ================= */
+function openSheet(key){
+  const o=dayMap[key];
+  const[y,m,d]=key.split('-').map(Number);
+  const idx=o?o.teamIdx:dutyIdx(new Date(y,m-1,d));
+  const fests=o?o.fests:getFestivals(y,m,d);
+  const lun=o?o.lunar:lunarStr(y,m,d);
+  const wk=o?o.week:WEEK[new Date(y,m-1,d).getDay()];
+  $('shDate').innerHTML=`${y}年${m}月${d}日 <span style="font-size:14px;color:var(--mut)">${wk}</span>`;
+  $('shLunar').textContent='农历 '+lun;
+  $('shTeam').innerHTML=`<span class="dot big" style="background:${colorOf(idx)}"></span>
+    <div><div style="font-size:12px;color:var(--mut)">当日值班 · 第${idx+1}组</div>
+    <div class="who">${esc(teamName(cfg.teams[idx]))}</div></div>`;
+  $('shFest').innerHTML=fests.length?fests.map(f=>`<span class="badge${f.legal?' legal':''}">${f.emoji} ${f.name}${f.legal?'（法定）':''}</span>`).join(''):'<span style="color:var(--mut);font-size:13px">普通值班日</span>';
+  $('mask').classList.add('on');$('sheet').classList.add('on');
+}
+function closeSheet(){$('mask').classList.remove('on');$('sheet').classList.remove('on');}
+
+/* ================= CSV ================= */
+function exportCSV(){
+  if(!days.length){alert('暂无排班数据');return;}
+  let csv='\uFEFF日期,星期,农历,值班人员,节日\n';
+  days.forEach(r=>{csv+=[`${r.y}-${pad(r.m)}-${pad(r.d)}`,r.week,r.lunar,teamName(cfg.teams[r.teamIdx]),
+    r.fests.map(f=>f.name).join('；')].map(v=>`"${v}"`).join(',')+'\n';});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download=`排班表_${cfg.start}_${cfg.end}.csv`;a.click();URL.revokeObjectURL(a.href);
+}
+
+/* ================= 事件 ================= */
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.page').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');$(b.dataset.p).classList.add('on');
+});
+$('chips').addEventListener('click',e=>{
+  const c=e.target.closest('.chip');if(!c)return;
+  filter=+c.dataset.f;renderChips();
+  document.querySelectorAll('#listBody .day-card').forEach(el=>{
+    const o=dayMap[el.dataset.k];
+    el.style.display=(filter===-1||o.teamIdx===filter)?'':'none';
+  });
+  document.querySelectorAll('.month-h').forEach((h,i,arr)=>{/* 保持月份标题显示 */});
+});
+$('listBody').addEventListener('click',e=>{
+  const c=e.target.closest('.day-card');if(c)openSheet(c.dataset.k);
+});
+$('calDays').addEventListener('click',e=>{
+  const c=e.target.closest('.cell');if(c&&!c.classList.contains('blank'))openSheet(c.dataset.k);
+});
+$('calPrev').onclick=()=>{calM--;if(calM<1){calM=12;calY--;}renderCal();};
+$('calNext').onclick=()=>{calM++;if(calM>12){calM=1;calY++;}renderCal();};
+$('calTodayBtn').onclick=()=>{const t=new Date();calY=t.getFullYear();calM=t.getMonth()+1;renderCal();};
+$('mask').onclick=closeSheet;$('shClose').onclick=closeSheet;
+
+$('teamList').addEventListener('input',e=>{
+  const t=e.target.dataset.t,i=e.target.dataset.i;
+  if(t!==undefined&&i!==undefined){cfg.teams[t][i]=e.target.value;save();generate();}
+});
+$('teamList').addEventListener('click',e=>{
+  const d=e.target.dataset.del;
+  if(d!==undefined){cfg.teams.splice(+d,1);
+    if(cfg.startIdx>=cfg.teams.length)cfg.startIdx=0;
+    generate();}
+});
+$('addTeamBtn').onclick=()=>{
+  if(cfg.teams.length>=8){alert('最多8组');return;}
+  cfg.teams.push(['','']);generate();
+};
+$('genBtn').onclick=()=>{
+  cfg.start=$('startDate').value||cfg.start;
+  cfg.end=$('endDate').value||cfg.end;
+  cfg.startIdx=+$('startTeam').value||0;
+  const s=parseDate(cfg.start),e2=parseDate(cfg.end);
+  if(e2<s){alert('结束日期不能早于开始日期');return;}
+  generate();
+  document.querySelector('.tab[data-p="page-list"]').click();
+};
+$('csvBtn').onclick=exportCSV;
+$('printBtn').onclick=()=>window.print();
+$('startDate').onchange=e=>{cfg.start=e.target.value;};
+$('endDate').onchange=e=>{cfg.end=e.target.value;};
+
+/* ================= 启动 ================= */
+$('startDate').value=cfg.start;$('endDate').value=cfg.end;
+const now=new Date();calY=now.getFullYear();calM=now.getMonth()+1;
+generate();
+</script>
+</body>
+</html>

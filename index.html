@@ -120,6 +120,7 @@
   .btn:active{opacity:.8}
   .stat2{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
   .stat2 .mini .v{font-size:17px}
+  .syncinfo{font-size:14px;line-height:1.8;padding:10px 12px;background:#f6f8ff;border-radius:12px}
   .tips{font-size:11px;color:var(--mut);line-height:1.7;margin-top:14px}
 
   /* ===== 底部导航 ===== */
@@ -159,6 +160,7 @@
 
 <!-- 顶栏：今日值班 -->
 <header class="topbar" id="topbar"></header>
+<div id="offlineBar" style="display:none;background:#fff7e0;color:#8a6d1a;padding:8px 14px;font-size:13px;text-align:center">⚠️ 云端连接失败，当前显示内置默认排班（只读）</div>
 
 <main>
   <!-- ===== 今日 ===== -->
@@ -204,6 +206,11 @@
   <!-- ===== 设置 ===== -->
   <section class="page" id="page-set">
     <div class="card" style="margin-top:0">
+      <h3>☁️ 云端同步</h3>
+      <div class="syncinfo" id="syncInfo">正在连接云端…</div>
+      <button class="btn g" id="refreshBtn">🔄 从云端刷新最新排班</button>
+    </div>
+    <div class="card">
       <h3>⚙️ 排班设置</h3>
       <div class="field"><label>开始日期</label><input type="date" id="startDate"></div>
       <div class="field"><label>结束日期</label><input type="date" id="endDate"></div>
@@ -212,7 +219,16 @@
         <div id="teamList"></div>
         <button class="btn g" id="addTeamBtn" style="margin-top:4px">＋ 添加一组</button>
       </div>
-      <button class="btn p" id="genBtn">🔄 重新生成排班表</button>
+      <button class="btn p" id="genBtn">☁️ 保存并同步到云端</button>
+      <div class="tips">点「保存并同步」后，所有人打开本页都会自动看到最新排班（约1分钟内生效），无需转发任何文件。修改记录保存在云端，可随时找回。</div>
+    </div>
+    <div class="card" id="tokenCard">
+      <h3>🔑 管理令牌</h3>
+      <div class="field"><label>GitHub 令牌（修改排班时需要；只查看无需设置）</label>
+        <input type="password" id="tokenInput" placeholder="粘贴 github_pat_… 或 ghp_… 令牌" autocomplete="off"></div>
+      <button class="btn g" id="saveTokenBtn">💾 保存令牌到本机</button>
+      <button class="btn g" id="tokenHelpBtn">🔗 打开令牌生成页面</button>
+      <div class="tips">生成步骤：点上面按钮登录 GitHub → Token name 填 paiban → 有效期选 1 年 → Repository access 选 <b>Only select repositories</b> 并勾选 <b>paiban</b> → Permissions 里 <b>Contents 选 Read and write</b> → Generate token → 复制令牌粘贴到上面输入框点保存。<br>令牌只保存在你自己的设备上，请勿使用授权了其他仓库的令牌。</div>
     </div>
     <div class="card">
       <h3>📊 班次统计</h3>
@@ -223,7 +239,7 @@
       <button class="btn g" id="csvBtn">⬇️ 导出 CSV（Excel可打开）</button>
       <button class="btn g" id="printBtn">🖨️ 打印排班表</button>
     </div>
-    <div class="tips">设置会自动保存在本机，下次打开不用重新填写。<br>法定节假日（元旦/春节/清明/劳动/端午/中秋/国庆）的连休调休以国务院每年发布的通知为准。</div>
+    <div class="tips">本页数据实时取自云端，打开即为最新。法定节假日（元旦/春节/清明/劳动/端午/中秋/国庆）的连休调休以国务院每年发布的通知为准。</div>
   </section>
 </main>
 
@@ -342,18 +358,20 @@ function getFestivals(y,m,d){
 /* ================= 核心 ================= */
 const WEEK=['周日','周一','周二','周三','周四','周五','周六'];
 const COLORS=['#4f6ef7','#f59e0b','#10b981','#8b5cf6','#ef4444','#06b6d4','#ec4899','#84cc16'];
+const OWNER='inklotus007',REPO='paiban',DPATH='data.json';
+const RAW_URL='https://raw.githubusercontent.com/'+OWNER+'/'+REPO+'/main/'+DPATH;
+const API_URL='https://api.github.com/repos/'+OWNER+'/'+REPO+'/contents/'+DPATH;
 const DEF={start:'2026-09-21',end:'2027-09-20',startIdx:0,
-  teams:[['李春琴','张莉'],['肖秀萍','杜欢欢'],['张娟娟','陈花']]};
+  teams:[['李春琴','张莉'],['肖秀萍','杜欢欢'],['张娟娟','陈花']],updatedAt:'',updatedBy:''};
 
-let cfg=load();
+let cfg=null;          // 当前生效（云端数据；失败时兜底 DEF）
+let editing=null;      // 设置页编辑副本，保存时才写入
+let cloudOK=false;
 let days=[],dayMap={},filter=-1,calY,calM;
 
-function load(){
-  try{const s=JSON.parse(localStorage.getItem('paiban_cfg'));
-    if(s&&s.teams&&s.teams.length)return s;}catch(e){}
-  return JSON.parse(JSON.stringify(DEF));
-}
-function save(){try{localStorage.setItem('paiban_cfg',JSON.stringify(cfg));}catch(e){}}
+function getToken(){try{return localStorage.getItem('paiban_token')||'';}catch(e){return '';}}
+function cfgSig(c){return JSON.stringify([c.start,c.end,c.startIdx,c.teams]);}
+function b64(s){const b=new TextEncoder().encode(s);let o='';for(let i=0;i<b.length;i++)o+=String.fromCharCode(b[i]);return btoa(o);}
 
 const $=id=>document.getElementById(id);
 const mod=(n,m)=>((n%m)+m)%m;
@@ -381,7 +399,7 @@ function generate(){
       cur.setDate(cur.getDate()+1);
     }
   }
-  save();renderAll();
+  renderAll();
 }
 
 /* ================= 顶栏 & 今日 ================= */
@@ -484,17 +502,23 @@ function renderStats(){
       <div style="font-size:11px;color:var(--mut);margin-top:2px">${esc(teamName(t))}</div></div>`).join('');
 }
 function renderTeamInputs(){
-  $('teamList').innerHTML=cfg.teams.map((t,i)=>`
+  if(!editing)return;
+  $('teamList').innerHTML=editing.teams.map((t,i)=>`
     <div class="team-row"><span class="dot" style="background:${colorOf(i)}"></span>
       <span class="ord">第${i+1}组</span>
       <input data-t="${i}" data-i="0" value="${esc(t[0]||'')}" placeholder="成员1">
       <input data-t="${i}" data-i="1" value="${esc(t[1]||'')}" placeholder="成员2">
-      <button class="del" data-del="${i}" ${cfg.teams.length<=1?'disabled':''}>✕</button></div>`).join('');
-  $('startTeam').innerHTML=cfg.teams.map((t,i)=>`<option value="${i}">第${i+1}组（${esc(teamName(t))}）</option>`).join('');
-  $('startTeam').value=cfg.startIdx;
+      <button class="del" data-del="${i}" ${editing.teams.length<=1?'disabled':''}>✕</button></div>`).join('');
+  $('startTeam').innerHTML=editing.teams.map((t,i)=>`<option value="${i}">第${i+1}组（${esc(teamName(t))}）</option>`).join('');
+  $('startTeam').value=editing.startIdx;
+}
+function renderSetForm(){
+  if(!editing)return;
+  $('startDate').value=editing.start;$('endDate').value=editing.end;
+  renderTeamInputs();
 }
 function renderAll(){
-  renderTopbar();renderNext();renderChips();renderList();renderCal();renderStats();renderTeamInputs();
+  renderTopbar();renderNext();renderChips();renderList();renderCal();renderStats();updateSyncUI();
 }
 
 /* ================= 详情弹层 ================= */
@@ -531,6 +555,9 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('on'));
   b.classList.add('on');$(b.dataset.p).classList.add('on');
+  if(b.dataset.p==='page-set'&&!editing){
+    editing=JSON.parse(JSON.stringify(cfg));renderSetForm();
+  }
 });
 $('chips').addEventListener('click',e=>{
   const c=e.target.closest('.chip');if(!c)return;
@@ -552,38 +579,157 @@ $('calNext').onclick=()=>{calM++;if(calM>12){calM=1;calY++;}renderCal();};
 $('calTodayBtn').onclick=()=>{const t=new Date();calY=t.getFullYear();calM=t.getMonth()+1;renderCal();};
 $('mask').onclick=closeSheet;$('shClose').onclick=closeSheet;
 
+/* ---- 云端同步 ---- */
+let toastTimer=null;
+function toast(msg,isErr){
+  let t=$('toastBox');
+  if(!t){t=document.createElement('div');t.id='toastBox';
+    t.style.cssText='position:fixed;left:50%;bottom:calc(90px + var(--sab));transform:translateX(-50%);z-index:99;background:rgba(30,40,60,.92);color:#fff;padding:10px 18px;border-radius:20px;font-size:13px;max-width:86%;text-align:center;transition:opacity .3s;opacity:0;pointer-events:none';
+    document.body.appendChild(t);}
+  t.textContent=msg;
+  t.style.background=isErr?'rgba(200,50,50,.94)':'rgba(30,40,60,.92)';
+  t.style.opacity='1';
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>{t.style.opacity='0';},3600);
+}
+function relTime(iso){
+  const d=new Date(iso);if(isNaN(d))return '—';
+  const s=(Date.now()-d.getTime())/1000;
+  if(s<60)return '刚刚';if(s<3600)return Math.floor(s/60)+' 分钟前';
+  if(s<86400)return Math.floor(s/3600)+' 小时前';
+  return Math.floor(s/86400)+' 天前';
+}
+function onSetPage(){return $('page-set').classList.contains('on');}
+function updateSyncUI(){
+  const el=$('syncInfo');if(!el)return;
+  if(!cfg){el.innerHTML='正在连接云端…';return;}
+  let head,sub='';
+  if(cloudOK){head='✅ 已连接云端，本页显示的就是所有人看到的最新版';
+    sub='最后更新：'+relTime(cfg.updatedAt)+(cfg.updatedBy?' · '+esc(cfg.updatedBy):'');}
+  else if(!cfg.updatedAt){head='⚠️ 云端连接失败，当前显示内置默认数据（只读）';}
+  else{head='⚠️ 云端暂不可达，显示最近一次获取的数据';
+    sub='最后更新：'+relTime(cfg.updatedAt);}
+  sub+='<br>'+(getToken()?'🔑 令牌已设置，可修改排班':'🔒 未设置令牌，当前只读（查看不受影响）');
+  el.innerHTML=head+'<br><span style="font-size:12px;color:var(--mut)">'+sub+'</span>';
+}
+function showOffline(){$('offlineBar').style.display='block';}
+function hideOffline(){$('offlineBar').style.display='none';}
+
+async function fetchRemote(opts){
+  opts=opts||{};
+  try{
+    const r=await fetch(RAW_URL+'?t='+Date.now(),{cache:'no-store'});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    if(!d||!Array.isArray(d.teams)||!d.teams.length)throw new Error('格式');
+    const first=!cfg;
+    const changed=!first&&cfgSig(cfg)!==cfgSig(d);
+    cfg=d;cloudOK=true;
+    generate();hideOffline();
+    if(changed){
+      if(onSetPage())toast('云端排班已被他人更新——你的修改还没保存，请核对');
+      else if(!opts.silent)toast('排班已更新为最新');
+    }
+    return true;
+  }catch(e){
+    cloudOK=false;
+    if(!cfg){cfg=JSON.parse(JSON.stringify(DEF));generate();showOffline();}
+    else{updateSyncUI();if(!opts.silent)toast('云端刷新失败，当前显示最近一次数据',true);}
+    return false;
+  }
+}
+
+function collectEditing(){
+  if(!$('startDate').value)return;
+  editing.start=$('startDate').value;
+  editing.end=$('endDate').value;
+  editing.startIdx=+$('startTeam').value||0;
+}
+async function saveToCloud(){
+  collectEditing();
+  if(!editing.start||!editing.end){alert('请填写开始和结束日期');return;}
+  const s=parseDate(editing.start),e2=parseDate(editing.end);
+  if(e2<s){alert('结束日期不能早于开始日期');return;}
+  if((e2-s)/864e5>3700){alert('排班跨度不能超过3700天');return;}
+  if(editing.teams.some(t=>!teamName(t))){alert('有空组——请填写成员或删除该组');return;}
+  if(!getToken()){
+    toast('需要管理令牌才能保存，见下方「管理令牌」卡片',true);
+    $('tokenCard').scrollIntoView({behavior:'smooth'});
+    setTimeout(()=>$('tokenInput').focus(),400);
+    return;
+  }
+  const btn=$('genBtn'),old=btn.textContent;
+  btn.disabled=true;btn.textContent='正在同步…';
+  try{
+    let sha=null;
+    const mres=await fetch(API_URL,{headers:{'Authorization':'Bearer '+getToken()}});
+    if(mres.ok){sha=(await mres.json()).sha;}
+    else if(mres.status!==404)throw new Error('连接云端失败('+mres.status+')');
+    editing.updatedAt=new Date().toISOString();
+    editing.updatedBy='手机页面提交';
+    const body={message:'排班更新 '+new Date().toLocaleString('zh-CN',{hour12:false}),
+      content:b64(JSON.stringify(editing,null,2)),branch:'main'};
+    if(sha)body.sha=sha;
+    const res=await fetch(API_URL,{method:'PUT',
+      headers:{'Authorization':'Bearer '+getToken(),'Content-Type':'application/json'},
+      body:JSON.stringify(body)});
+    if(res.status===401)throw new Error('令牌无效或已过期，请重新生成');
+    if(res.status===403)throw new Error('令牌权限不足：需要 paiban 仓库 Contents 的读写权限');
+    if(res.status===409||res.status===422){
+      await fetchRemote({silent:true});
+      throw new Error('云端刚被别人更新过，已载入最新数据，请核对后重新保存');
+    }
+    if(!res.ok)throw new Error('保存失败('+res.status+')');
+    cfg=JSON.parse(JSON.stringify(editing));
+    cloudOK=true;generate();
+    toast('已同步 ✓ 所有人打开本页都会自动看到最新排班');
+    document.querySelector('.tab[data-p="page-list"]').click();
+  }catch(err){toast(err.message||'保存失败',true);}
+  finally{
+    btn.disabled=false;btn.textContent=old;
+    editing=JSON.parse(JSON.stringify(cfg));renderSetForm();
+  }
+}
+
+/* ---- 设置页编辑（作用于 editing 副本，保存时才上云） ---- */
 $('teamList').addEventListener('input',e=>{
   const t=e.target.dataset.t,i=e.target.dataset.i;
-  if(t!==undefined&&i!==undefined){cfg.teams[t][i]=e.target.value;save();generate();}
+  if(editing&&t!==undefined&&i!==undefined)editing.teams[t][i]=e.target.value;
 });
 $('teamList').addEventListener('click',e=>{
   const d=e.target.dataset.del;
-  if(d!==undefined){cfg.teams.splice(+d,1);
-    if(cfg.startIdx>=cfg.teams.length)cfg.startIdx=0;
-    generate();}
+  if(editing&&d!==undefined){editing.teams.splice(+d,1);
+    if(editing.startIdx>=editing.teams.length)editing.startIdx=0;
+    renderSetForm();}
 });
 $('addTeamBtn').onclick=()=>{
-  if(cfg.teams.length>=8){alert('最多8组');return;}
-  cfg.teams.push(['','']);generate();
+  if(!editing)return;
+  if(editing.teams.length>=8){alert('最多8组');return;}
+  editing.teams.push(['','']);renderSetForm();
 };
-$('genBtn').onclick=()=>{
-  cfg.start=$('startDate').value||cfg.start;
-  cfg.end=$('endDate').value||cfg.end;
-  cfg.startIdx=+$('startTeam').value||0;
-  const s=parseDate(cfg.start),e2=parseDate(cfg.end);
-  if(e2<s){alert('结束日期不能早于开始日期');return;}
-  generate();
-  document.querySelector('.tab[data-p="page-list"]').click();
+$('genBtn').onclick=saveToCloud;
+$('refreshBtn').onclick=()=>{toast('正在从云端刷新…');fetchRemote().then(ok=>{if(ok)toast('已是最新 ✓');});};
+$('saveTokenBtn').onclick=()=>{
+  const v=$('tokenInput').value.trim();
+  try{v?localStorage.setItem('paiban_token',v):localStorage.removeItem('paiban_token');}catch(e){}
+  toast(v?'令牌已保存到本机 ✓':'令牌已清除（回到只读模式）');
+  updateSyncUI();
 };
+$('tokenHelpBtn').onclick=()=>window.open('https://github.com/settings/personal-access-tokens/new','_blank');
+$('tokenInput').value=getToken();
+
+/* ---- 云端自动同步：每2分钟 + 回到前台时 ---- */
+setInterval(()=>fetchRemote({silent:true}),120000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)fetchRemote({silent:true});});
+
 $('csvBtn').onclick=exportCSV;
 $('printBtn').onclick=()=>window.print();
 $('startDate').onchange=e=>{cfg.start=e.target.value;};
 $('endDate').onchange=e=>{cfg.end=e.target.value;};
 
-/* ================= 启动 ================= */
-$('startDate').value=cfg.start;$('endDate').value=cfg.end;
+/* ================= 启动：先拉云端，失败兜底内置 ================= */
 const now=new Date();calY=now.getFullYear();calM=now.getMonth()+1;
-generate();
+fetchRemote();
 </script>
 </body>
 </html>

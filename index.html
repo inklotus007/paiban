@@ -161,6 +161,7 @@
 <!-- 顶栏：今日值班 -->
 <header class="topbar" id="topbar"></header>
 <div id="offlineBar" style="display:none;background:#fff7e0;color:#8a6d1a;padding:8px 14px;font-size:13px;text-align:center">⚠️ 云端连接失败，当前显示内置默认排班（只读）</div>
+<div id="syncBar" style="display:none;background:#eef2ff;color:#4a5fc1;padding:8px 14px;font-size:13px;text-align:center">⟳ 正在同步云端数据…</div>
 
 <main>
   <!-- ===== 今日 ===== -->
@@ -614,18 +615,34 @@ function updateSyncUI(){
 }
 function showOffline(){$('offlineBar').style.display='block';}
 function hideOffline(){$('offlineBar').style.display='none';}
+function showSync(){$('syncBar').style.display='block';}
+function hideSync(){$('syncBar').style.display='none';}
+
+function loadCache(){
+  try{
+    const s=localStorage.getItem('paiban_cache');
+    if(!s)return null;
+    const d=JSON.parse(s);
+    if(!d||!Array.isArray(d.teams)||!d.teams.length)return null;
+    return d;
+  }catch(e){return null;}
+}
+function saveCache(d){try{localStorage.setItem('paiban_cache',JSON.stringify(d));}catch(e){}}
 
 async function fetchRemote(opts){
   opts=opts||{};
+  const ctl=('AbortController' in window)?new AbortController():null;
+  const timer=ctl?setTimeout(()=>ctl.abort(),8000):null;
   try{
-    const r=await fetch(RAW_URL+'?t='+Date.now(),{cache:'no-store'});
+    const r=await fetch(RAW_URL+'?t='+Date.now(),{cache:'no-store',signal:ctl?ctl.signal:undefined});
     if(!r.ok)throw new Error('HTTP '+r.status);
     const d=await r.json();
     if(!d||!Array.isArray(d.teams)||!d.teams.length)throw new Error('格式');
     const first=!cfg;
     const changed=!first&&cfgSig(cfg)!==cfgSig(d);
     cfg=d;cloudOK=true;
-    generate();hideOffline();
+    saveCache(d);hideOffline();hideSync();
+    if(first||changed)generate();else updateSyncUI();
     if(changed){
       if(onSetPage())toast('云端排班已被他人更新——你的修改还没保存，请核对');
       else if(!opts.silent)toast('排班已更新为最新');
@@ -634,8 +651,14 @@ async function fetchRemote(opts){
   }catch(e){
     cloudOK=false;
     if(!cfg){cfg=JSON.parse(JSON.stringify(DEF));generate();showOffline();}
-    else{updateSyncUI();if(!opts.silent)toast('云端刷新失败，当前显示最近一次数据',true);}
+    else{
+      if($('syncBar').style.display!=='none'){hideSync();showOffline();}
+      updateSyncUI();
+      if(!opts.silent)toast('云端刷新失败，当前显示最近一次数据',true);
+    }
     return false;
+  }finally{
+    if(timer)clearTimeout(timer);
   }
 }
 
@@ -681,7 +704,7 @@ async function saveToCloud(){
     }
     if(!res.ok)throw new Error('保存失败('+res.status+')');
     cfg=JSON.parse(JSON.stringify(editing));
-    cloudOK=true;generate();
+    cloudOK=true;saveCache(cfg);generate();
     toast('已同步 ✓ 所有人打开本页都会自动看到最新排班');
     document.querySelector('.tab[data-p="page-list"]').click();
   }catch(err){toast(err.message||'保存失败',true);}
@@ -727,8 +750,11 @@ $('printBtn').onclick=()=>window.print();
 $('startDate').onchange=e=>{cfg.start=e.target.value;};
 $('endDate').onchange=e=>{cfg.end=e.target.value;};
 
-/* ================= 启动：先拉云端，失败兜底内置 ================= */
+/* ================= 启动：缓存秒开（无缓存用内置默认）→ 后台静默同步 ================= */
 const now=new Date();calY=now.getFullYear();calM=now.getMonth()+1;
+const cachedCfg=loadCache();
+if(cachedCfg){cfg=cachedCfg;generate();}
+else{cfg=JSON.parse(JSON.stringify(DEF));generate();showSync();}
 fetchRemote();
 </script>
 </body>

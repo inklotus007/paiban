@@ -71,6 +71,10 @@
   .dc-fest{flex:none;text-align:right}
   .femoji{font-size:20px}
   .legal-tag{font-size:10px;color:#fff;background:var(--fest);border-radius:8px;padding:1px 6px;display:inline-block;margin-top:3px}
+  .work-tag{font-size:10px;color:#fff;background:#0e9f6e;border-radius:8px;padding:1px 6px;display:inline-block;margin-top:3px;margin-left:4px}
+  .cell{position:relative}
+  .workmark{position:absolute;top:2px;right:4px;font-size:9px;color:#fff;background:#0e9f6e;border-radius:4px;padding:0 3px;line-height:1.5}
+  .badge.work{background:#ecfdf5;color:#0e9f6e;border:1px solid #a7f3d0}
   .today-pill{font-size:10px;background:var(--p);color:#fff;border-radius:8px;padding:1px 6px;margin-left:4px}
 
   details.festbox{margin-top:16px;background:#fff;border-radius:14px;box-shadow:0 2px 10px rgba(31,45,61,.06)}
@@ -120,7 +124,6 @@
   .btn:active{opacity:.8}
   .stat2{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
   .stat2 .mini .v{font-size:17px}
-  .syncinfo{font-size:14px;line-height:1.8;padding:10px 12px;background:#f6f8ff;border-radius:12px}
   .tips{font-size:11px;color:var(--mut);line-height:1.7;margin-top:14px}
 
   /* ===== 底部导航 ===== */
@@ -154,16 +157,12 @@
     #page-list{display:block!important}
     .day-card{box-shadow:none;border:1px solid #eee;page-break-inside:avoid}
   }
-  @keyframes syncspin{to{transform:rotate(360deg)}}
-  #syncBar .sp{display:inline-block;animation:syncspin 1.1s linear infinite}
 </style>
 </head>
 <body>
 
 <!-- 顶栏：今日值班 -->
 <header class="topbar" id="topbar"></header>
-<div id="offlineBar" style="display:none;background:#fff7e0;color:#8a6d1a;padding:8px 14px;font-size:13px;text-align:center">⚠️ 云端连接失败，当前显示内置默认排班（只读）</div>
-<div id="syncBar" style="display:none;background:#eef2ff;color:#4a5fc1;padding:8px 14px;font-size:13px;text-align:center"><span class="sp">⟳</span> 正在同步云端数据…</div>
 
 <main>
   <!-- ===== 今日 ===== -->
@@ -209,11 +208,6 @@
   <!-- ===== 设置 ===== -->
   <section class="page" id="page-set">
     <div class="card" style="margin-top:0">
-      <h3>☁️ 云端同步</h3>
-      <div class="syncinfo" id="syncInfo">正在连接云端…</div>
-      <button class="btn g" id="refreshBtn">🔄 从云端刷新最新排班</button>
-    </div>
-    <div class="card">
       <h3>⚙️ 排班设置</h3>
       <div class="field"><label>开始日期</label><input type="date" id="startDate"></div>
       <div class="field"><label>结束日期</label><input type="date" id="endDate"></div>
@@ -222,16 +216,7 @@
         <div id="teamList"></div>
         <button class="btn g" id="addTeamBtn" style="margin-top:4px">＋ 添加一组</button>
       </div>
-      <button class="btn p" id="genBtn">☁️ 保存并同步到云端</button>
-      <div class="tips">点「保存并同步」后，所有人打开本页都会自动看到最新排班（约1分钟内生效），无需转发任何文件。修改记录保存在云端，可随时找回。</div>
-    </div>
-    <div class="card" id="tokenCard">
-      <h3>🔑 管理令牌</h3>
-      <div class="field"><label>GitHub 令牌（修改排班时需要；只查看无需设置）</label>
-        <input type="password" id="tokenInput" placeholder="粘贴 github_pat_… 或 ghp_… 令牌" autocomplete="off"></div>
-      <button class="btn g" id="saveTokenBtn">💾 保存令牌到本机</button>
-      <button class="btn g" id="tokenHelpBtn">🔗 打开令牌生成页面</button>
-      <div class="tips">生成步骤：点上面按钮登录 GitHub → Token name 填 paiban → 有效期选 1 年 → Repository access 选 <b>Only select repositories</b> 并勾选 <b>paiban</b> → Permissions 里 <b>Contents 选 Read and write</b> → Generate token → 复制令牌粘贴到上面输入框点保存。<br>令牌只保存在你自己的设备上，请勿使用授权了其他仓库的令牌。</div>
+      <button class="btn p" id="genBtn">🔄 重新生成排班表</button>
     </div>
     <div class="card">
       <h3>📊 班次统计</h3>
@@ -242,7 +227,7 @@
       <button class="btn g" id="csvBtn">⬇️ 导出 CSV（Excel可打开）</button>
       <button class="btn g" id="printBtn">🖨️ 打印排班表</button>
     </div>
-    <div class="tips">本页数据实时取自云端，打开即为最新。法定节假日（元旦/春节/清明/劳动/端午/中秋/国庆）的连休调休以国务院每年发布的通知为准。</div>
+    <div class="tips">设置会自动保存在本机，下次打开不用重新填写。<br>法定节假日（元旦/春节/清明/劳动/端午/中秋/国庆）的连休调休以国务院每年发布的通知为准。</div>
   </section>
 </main>
 
@@ -322,6 +307,29 @@ function lunarDayName(d){
 function lunarMonthName(m,leap){const n=['正','二','三','四','五','六','七','八','九','十','冬','腊'];return(leap?'闰':'')+n[m-1]+'月';}
 
 /* ================= 节日 ================= */
+/* ===== 放假调休数据（来源：国务院办公厅每年通知，新华网受权发布）=====
+ * rest: [起始, 结束, 名称, emoji] —— 放假区间（含首尾），区间内每天都算法定假日
+ * work: 周末补班日（要上班的周末，标「班」）
+ * 字符串按 'MM-DD' 补零存储，字典序即日期序。每年11月左右公布次年安排，届时更新此表。
+ */
+const HOLIDAYS={
+  2026:{
+    rest:[['01-01','01-03','元旦','🎉'],['02-15','02-23','春节','🧨'],['04-04','04-06','清明节','🌿'],
+          ['05-01','05-05','劳动节','🌷'],['06-19','06-21','端午节','🐉'],['09-25','09-27','中秋节','🥮'],
+          ['10-01','10-07','国庆节','🇨🇳']],
+    work:['01-04','02-14','02-28','05-09','09-20','10-10']
+  }
+};
+function holidayInfo(y,m,d){
+  const h=HOLIDAYS[y];if(!h)return null;
+  const key=pad(m)+'-'+pad(d);
+  if(h.work.includes(key))return{work:true};
+  for(const[s,e,name,emoji]of h.rest){
+    if(key>=s&&key<=e)return{rest:true,name,emoji};
+  }
+  return null;
+}
+
 function nthWeekday(y,m,wd,n){const off=(wd-new Date(y,m-1,1).getDay()+7)%7;return 1+off+(n-1)*7;}
 function getFestivals(y,m,d){
   const list=[];const add=(name,emoji,legal)=>list.push({name,emoji,legal:!!legal});
@@ -355,26 +363,27 @@ function getFestivals(y,m,d){
   const t=new Date(y,m-1,d+1);
   const l2=solarToLunar(t.getFullYear(),t.getMonth()+1,t.getDate());
   if(!l2.isLeap&&l2.month===1&&l2.day===1)add('除夕','🏮',true);
+  // 放假区间内的每一天都算法定假日（10/2-10/7这类没有节日名的一天）
+  const hi=holidayInfo(y,m,d);
+  if(hi&&hi.rest&&!list.some(f=>f.legal))add(hi.name,hi.emoji,true);
   return list;
 }
 
 /* ================= 核心 ================= */
 const WEEK=['周日','周一','周二','周三','周四','周五','周六'];
 const COLORS=['#4f6ef7','#f59e0b','#10b981','#8b5cf6','#ef4444','#06b6d4','#ec4899','#84cc16'];
-const OWNER='inklotus007',REPO='paiban',DPATH='data.json';
-const RAW_URL='https://raw.githubusercontent.com/'+OWNER+'/'+REPO+'/main/'+DPATH;
-const API_URL='https://api.github.com/repos/'+OWNER+'/'+REPO+'/contents/'+DPATH;
 const DEF={start:'2026-09-21',end:'2027-09-20',startIdx:0,
-  teams:[['李春琴','张莉'],['肖秀萍','杜欢欢'],['张娟娟','陈花']],updatedAt:'',updatedBy:''};
+  teams:[['李春琴','张莉'],['肖秀萍','杜欢欢'],['张娟娟','陈花']]};
 
-let cfg=null;          // 当前生效（云端数据；失败时兜底 DEF）
-let editing=null;      // 设置页编辑副本，保存时才写入
-let cloudOK=false;
+let cfg=load();
 let days=[],dayMap={},filter=-1,calY,calM;
 
-function getToken(){try{return localStorage.getItem('paiban_token')||'';}catch(e){return '';}}
-function cfgSig(c){return JSON.stringify([c.start,c.end,c.startIdx,c.teams]);}
-function b64(s){const b=new TextEncoder().encode(s);let o='';for(let i=0;i<b.length;i++)o+=String.fromCharCode(b[i]);return btoa(o);}
+function load(){
+  try{const s=JSON.parse(localStorage.getItem('paiban_cfg'));
+    if(s&&s.teams&&s.teams.length)return s;}catch(e){}
+  return JSON.parse(JSON.stringify(DEF));
+}
+function save(){try{localStorage.setItem('paiban_cfg',JSON.stringify(cfg));}catch(e){}}
 
 const $=id=>document.getElementById(id);
 const mod=(n,m)=>((n%m)+m)%m;
@@ -398,11 +407,13 @@ function generate(){
       const o={y,m,d,date:new Date(cur),week:WEEK[cur.getDay()],
         we:cur.getDay()===0||cur.getDay()===6,lunar:lunarStr(y,m,d),fests,
         legal:fests.some(f=>f.legal),teamIdx:dutyIdx(cur)};
+      const hi=holidayInfo(y,m,d);
+      if(hi&&hi.work)o.workday=true;
       days.push(o);dayMap[y+'-'+m+'-'+d]=o;
       cur.setDate(cur.getDate()+1);
     }
   }
-  renderAll();
+  save();renderAll();
 }
 
 /* ================= 顶栏 & 今日 ================= */
@@ -459,7 +470,7 @@ function renderList(){
           <div class="wk${r.we?' wk':''}">${r.week}</div></div>
         <div class="dc-mid"><div class="dc-team"><span class="dot" style="background:${colorOf(r.teamIdx)}"></span>${esc(teamName(cfg.teams[r.teamIdx]))}</div>
           <div class="dc-lunar">农历 ${r.lunar}</div></div>
-        <div class="dc-fest">${r.fests.length?`<div class="femoji">${r.fests.map(f=>f.emoji).join('')}</div>${r.legal?'<span class="legal-tag">法定</span>':''}`:''}</div>
+        <div class="dc-fest">${r.fests.length?`<div class="femoji">${r.fests.map(f=>f.emoji).join('')}</div>${r.legal?'<span class="legal-tag">法定</span>':''}`:''}${r.workday?'<span class="work-tag">班</span>':''}</div>
       </div>`;
     });
   });
@@ -485,8 +496,9 @@ function renderCal(){
     const idx=dutyIdx(dt),fests=getFestivals(calY,calM,d);
     const legal=fests.some(f=>f.legal);
     const isT=dt.getTime()===today.getTime();
+    const hi=holidayInfo(calY,calM,d),isWork=!!(hi&&hi.work);
     const cls='cell'+(dt.getDay()===0||dt.getDay()===6?' we':'')+(legal?' legal':'')+(isT?' today':'');
-    html+=`<div class="${cls}" data-k="${calY}-${calM}-${d}"><span class="n">${d}</span>
+    html+=`<div class="${cls}" data-k="${calY}-${calM}-${d}"><span class="n">${d}</span>${isWork?'<span class="workmark">班</span>':''}
       <span class="d" style="background:${colorOf(idx)}"></span></div>`;
   }
   $('calDays').innerHTML=html;
@@ -505,23 +517,17 @@ function renderStats(){
       <div style="font-size:11px;color:var(--mut);margin-top:2px">${esc(teamName(t))}</div></div>`).join('');
 }
 function renderTeamInputs(){
-  if(!editing)return;
-  $('teamList').innerHTML=editing.teams.map((t,i)=>`
+  $('teamList').innerHTML=cfg.teams.map((t,i)=>`
     <div class="team-row"><span class="dot" style="background:${colorOf(i)}"></span>
       <span class="ord">第${i+1}组</span>
       <input data-t="${i}" data-i="0" value="${esc(t[0]||'')}" placeholder="成员1">
       <input data-t="${i}" data-i="1" value="${esc(t[1]||'')}" placeholder="成员2">
-      <button class="del" data-del="${i}" ${editing.teams.length<=1?'disabled':''}>✕</button></div>`).join('');
-  $('startTeam').innerHTML=editing.teams.map((t,i)=>`<option value="${i}">第${i+1}组（${esc(teamName(t))}）</option>`).join('');
-  $('startTeam').value=editing.startIdx;
-}
-function renderSetForm(){
-  if(!editing)return;
-  $('startDate').value=editing.start;$('endDate').value=editing.end;
-  renderTeamInputs();
+      <button class="del" data-del="${i}" ${cfg.teams.length<=1?'disabled':''}>✕</button></div>`).join('');
+  $('startTeam').innerHTML=cfg.teams.map((t,i)=>`<option value="${i}">第${i+1}组（${esc(teamName(t))}）</option>`).join('');
+  $('startTeam').value=cfg.startIdx;
 }
 function renderAll(){
-  renderTopbar();renderNext();renderChips();renderList();renderCal();renderStats();updateSyncUI();
+  renderTopbar();renderNext();renderChips();renderList();renderCal();renderStats();renderTeamInputs();
 }
 
 /* ================= 详情弹层 ================= */
@@ -537,7 +543,9 @@ function openSheet(key){
   $('shTeam').innerHTML=`<span class="dot big" style="background:${colorOf(idx)}"></span>
     <div><div style="font-size:12px;color:var(--mut)">当日值班 · 第${idx+1}组</div>
     <div class="who">${esc(teamName(cfg.teams[idx]))}</div></div>`;
-  $('shFest').innerHTML=fests.length?fests.map(f=>`<span class="badge${f.legal?' legal':''}">${f.emoji} ${f.name}${f.legal?'（法定）':''}</span>`).join(''):'<span style="color:var(--mut);font-size:13px">普通值班日</span>';
+  const hi=holidayInfo(y,m,d);
+  const workBadge=(hi&&hi.work)?'<span class="badge work">📌 补班日 · 记得值班</span>':'';
+  $('shFest').innerHTML=fests.length?fests.map(f=>`<span class="badge${f.legal?' legal':''}">${f.emoji} ${f.name}${f.legal?'（法定）':''}</span>`).join('')+workBadge:(workBadge||'<span style="color:var(--mut);font-size:13px">普通值班日</span>');
   $('mask').classList.add('on');$('sheet').classList.add('on');
 }
 function closeSheet(){$('mask').classList.remove('on');$('sheet').classList.remove('on');}
@@ -558,9 +566,6 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('on'));
   b.classList.add('on');$(b.dataset.p).classList.add('on');
-  if(b.dataset.p==='page-set'&&!editing){
-    editing=JSON.parse(JSON.stringify(cfg));renderSetForm();
-  }
 });
 $('chips').addEventListener('click',e=>{
   const c=e.target.closest('.chip');if(!c)return;
@@ -582,222 +587,38 @@ $('calNext').onclick=()=>{calM++;if(calM>12){calM=1;calY++;}renderCal();};
 $('calTodayBtn').onclick=()=>{const t=new Date();calY=t.getFullYear();calM=t.getMonth()+1;renderCal();};
 $('mask').onclick=closeSheet;$('shClose').onclick=closeSheet;
 
-/* ---- 云端同步 ---- */
-let toastTimer=null;
-function toast(msg,isErr){
-  let t=$('toastBox');
-  if(!t){t=document.createElement('div');t.id='toastBox';
-    t.style.cssText='position:fixed;left:50%;bottom:calc(90px + var(--sab));transform:translateX(-50%);z-index:99;background:rgba(30,40,60,.92);color:#fff;padding:10px 18px;border-radius:20px;font-size:13px;max-width:86%;text-align:center;transition:opacity .3s;opacity:0;pointer-events:none';
-    document.body.appendChild(t);}
-  t.textContent=msg;
-  t.style.background=isErr?'rgba(200,50,50,.94)':'rgba(30,40,60,.92)';
-  t.style.opacity='1';
-  clearTimeout(toastTimer);
-  toastTimer=setTimeout(()=>{t.style.opacity='0';},3600);
-}
-function relTime(iso){
-  const d=new Date(iso);if(isNaN(d))return '—';
-  const s=(Date.now()-d.getTime())/1000;
-  if(s<60)return '刚刚';if(s<3600)return Math.floor(s/60)+' 分钟前';
-  if(s<86400)return Math.floor(s/3600)+' 小时前';
-  return Math.floor(s/86400)+' 天前';
-}
-function onSetPage(){return $('page-set').classList.contains('on');}
-function updateSyncUI(){
-  const el=$('syncInfo');if(!el)return;
-  if(!cfg){el.innerHTML='正在连接云端…';return;}
-  let head,sub='';
-  if(cloudOK){head='✅ 已连接云端，本页显示的就是所有人看到的最新版';
-    sub='最后更新：'+relTime(cfg.updatedAt)+(cfg.updatedBy?' · '+esc(cfg.updatedBy):'');}
-  else if(!cfg.updatedAt){head='⚠️ 云端连接失败，当前显示内置默认数据（只读）';}
-  else{head='⚠️ 云端暂不可达，显示最近一次获取的数据';
-    sub='最后更新：'+relTime(cfg.updatedAt);}
-  sub+='<br>'+(getToken()?'🔑 令牌已设置，可修改排班':'🔒 未设置令牌，当前只读（查看不受影响）');
-  el.innerHTML=head+'<br><span style="font-size:12px;color:var(--mut)">'+sub+'</span>';
-}
-function showOffline(){$('offlineBar').style.display='block';}
-function hideOffline(){$('offlineBar').style.display='none';}
-function showSync(){$('syncBar').style.display='block';}
-function hideSync(){$('syncBar').style.display='none';}
-
-function loadCache(){
-  try{
-    const s=localStorage.getItem('paiban_cache');
-    if(!s)return null;
-    const d=JSON.parse(s);
-    if(!d||!Array.isArray(d.teams)||!d.teams.length)return null;
-    return d;
-  }catch(e){return null;}
-}
-function saveCache(d){try{localStorage.setItem('paiban_cache',JSON.stringify(d));}catch(e){}}
-
-function b64ToUtf8(s){
-  try{
-    const bin=atob(String(s).replace(/\s/g,''));
-    const bytes=new Uint8Array(bin.length);
-    for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
-    return new TextDecoder().decode(bytes);
-  }catch(e){return null;}
-}
-
-async function tryRaw(sig){
-  const r=await fetch(RAW_URL+'?t='+Date.now(),{cache:'no-store',signal:sig});
-  if(!r.ok)throw new Error('HTTP '+r.status);
-  const d=await r.json();
-  if(!d||!Array.isArray(d.teams)||!d.teams.length)throw new Error('格式');
-  return d;
-}
-async function tryApi(sig){
-  const h=getToken()?{'Authorization':'Bearer '+getToken()}:{};
-  const r=await fetch(API_URL,{cache:'no-store',signal:sig,headers:h});
-  if(!r.ok)throw new Error('HTTP '+r.status);
-  const j=await r.json();
-  const txt=(j&&j.content)?b64ToUtf8(j.content):null;
-  if(!txt)throw new Error('API内容为空');
-  const d=JSON.parse(txt);
-  if(!d||!Array.isArray(d.teams)||!d.teams.length)throw new Error('格式');
-  return d;
-}
-
-/* 拉取：raw 先行，4 秒未回并行发 API 源，谁先到用谁；总超时 25 秒 */
-async function fetchOnce(){
-  const ctl=('AbortController' in window)?new AbortController():null;
-  const sig=ctl?ctl.signal:undefined;
-  const kill=ctl?setTimeout(()=>ctl.abort(),25000):null;
-  try{
-    if(!ctl||!Promise.any)return await tryRaw(sig);
-    const rawP=tryRaw(sig);
-    rawP.catch(()=>{});
-    const apiP=(async()=>{await new Promise(r=>setTimeout(r,4000));return await tryApi(sig);})();
-    apiP.catch(()=>{});
-    const d=await Promise.any([rawP,apiP]);
-    ctl.abort();            // 赢家已出，掐掉另一个（已 abort 的 signal 不会再发请求）
-    return d;
-  }finally{
-    if(kill)clearTimeout(kill);
-  }
-}
-
-async function fetchRemote(opts){
-  opts=opts||{};
-  try{
-    const d=await fetchOnce();
-    const first=!cfg;
-    const changed=!first&&cfgSig(cfg)!==cfgSig(d);
-    cfg=d;cloudOK=true;
-    saveCache(d);hideOffline();hideSync();
-    if(first||changed)generate();else updateSyncUI();
-    if(changed){
-      if(onSetPage())toast('云端排班已被他人更新——你的修改还没保存，请核对');
-      else if(!opts.silent)toast('排班已更新为最新');
-    }
-    return true;
-  }catch(e){
-    cloudOK=false;
-    if(!cfg){cfg=JSON.parse(JSON.stringify(DEF));generate();showOffline();}
-    else{
-      if($('syncBar').style.display!=='none'){hideSync();showOffline();}
-      updateSyncUI();
-      if(!opts.silent)toast('云端刷新失败，当前显示最近一次数据',true);
-    }
-    return false;
-  }
-}
-
-function collectEditing(){
-  if(!$('startDate').value)return;
-  editing.start=$('startDate').value;
-  editing.end=$('endDate').value;
-  editing.startIdx=+$('startTeam').value||0;
-}
-async function saveToCloud(){
-  collectEditing();
-  if(!editing.start||!editing.end){alert('请填写开始和结束日期');return;}
-  const s=parseDate(editing.start),e2=parseDate(editing.end);
-  if(e2<s){alert('结束日期不能早于开始日期');return;}
-  if((e2-s)/864e5>3700){alert('排班跨度不能超过3700天');return;}
-  if(editing.teams.some(t=>!teamName(t))){alert('有空组——请填写成员或删除该组');return;}
-  if(!getToken()){
-    toast('需要管理令牌才能保存，见下方「管理令牌」卡片',true);
-    $('tokenCard').scrollIntoView({behavior:'smooth'});
-    setTimeout(()=>$('tokenInput').focus(),400);
-    return;
-  }
-  const btn=$('genBtn'),old=btn.textContent;
-  btn.disabled=true;btn.textContent='正在同步…';
-  try{
-    let sha=null;
-    const mres=await fetch(API_URL,{headers:{'Authorization':'Bearer '+getToken()}});
-    if(mres.ok){sha=(await mres.json()).sha;}
-    else if(mres.status!==404)throw new Error('连接云端失败('+mres.status+')');
-    editing.updatedAt=new Date().toISOString();
-    editing.updatedBy='手机页面提交';
-    const body={message:'排班更新 '+new Date().toLocaleString('zh-CN',{hour12:false}),
-      content:b64(JSON.stringify(editing,null,2)),branch:'main'};
-    if(sha)body.sha=sha;
-    const res=await fetch(API_URL,{method:'PUT',
-      headers:{'Authorization':'Bearer '+getToken(),'Content-Type':'application/json'},
-      body:JSON.stringify(body)});
-    if(res.status===401)throw new Error('令牌无效或已过期，请重新生成');
-    if(res.status===403)throw new Error('令牌权限不足：需要 paiban 仓库 Contents 的读写权限');
-    if(res.status===409||res.status===422){
-      await fetchRemote({silent:true});
-      throw new Error('云端刚被别人更新过，已载入最新数据，请核对后重新保存');
-    }
-    if(!res.ok)throw new Error('保存失败('+res.status+')');
-    cfg=JSON.parse(JSON.stringify(editing));
-    cloudOK=true;saveCache(cfg);generate();
-    toast('已同步 ✓ 所有人打开本页都会自动看到最新排班');
-    document.querySelector('.tab[data-p="page-list"]').click();
-  }catch(err){toast(err.message||'保存失败',true);}
-  finally{
-    btn.disabled=false;btn.textContent=old;
-    editing=JSON.parse(JSON.stringify(cfg));renderSetForm();
-  }
-}
-
-/* ---- 设置页编辑（作用于 editing 副本，保存时才上云） ---- */
 $('teamList').addEventListener('input',e=>{
   const t=e.target.dataset.t,i=e.target.dataset.i;
-  if(editing&&t!==undefined&&i!==undefined)editing.teams[t][i]=e.target.value;
+  if(t!==undefined&&i!==undefined){cfg.teams[t][i]=e.target.value;save();generate();}
 });
 $('teamList').addEventListener('click',e=>{
   const d=e.target.dataset.del;
-  if(editing&&d!==undefined){editing.teams.splice(+d,1);
-    if(editing.startIdx>=editing.teams.length)editing.startIdx=0;
-    renderSetForm();}
+  if(d!==undefined){cfg.teams.splice(+d,1);
+    if(cfg.startIdx>=cfg.teams.length)cfg.startIdx=0;
+    generate();}
 });
 $('addTeamBtn').onclick=()=>{
-  if(!editing)return;
-  if(editing.teams.length>=8){alert('最多8组');return;}
-  editing.teams.push(['','']);renderSetForm();
+  if(cfg.teams.length>=8){alert('最多8组');return;}
+  cfg.teams.push(['','']);generate();
 };
-$('genBtn').onclick=saveToCloud;
-$('refreshBtn').onclick=()=>{toast('正在从云端刷新…');fetchRemote().then(ok=>{if(ok)toast('已是最新 ✓');});};
-$('saveTokenBtn').onclick=()=>{
-  const v=$('tokenInput').value.trim();
-  try{v?localStorage.setItem('paiban_token',v):localStorage.removeItem('paiban_token');}catch(e){}
-  toast(v?'令牌已保存到本机 ✓':'令牌已清除（回到只读模式）');
-  updateSyncUI();
+$('genBtn').onclick=()=>{
+  cfg.start=$('startDate').value||cfg.start;
+  cfg.end=$('endDate').value||cfg.end;
+  cfg.startIdx=+$('startTeam').value||0;
+  const s=parseDate(cfg.start),e2=parseDate(cfg.end);
+  if(e2<s){alert('结束日期不能早于开始日期');return;}
+  generate();
+  document.querySelector('.tab[data-p="page-list"]').click();
 };
-$('tokenHelpBtn').onclick=()=>window.open('https://github.com/settings/personal-access-tokens/new','_blank');
-$('tokenInput').value=getToken();
-
-/* ---- 云端自动同步：每2分钟 + 回到前台时 ---- */
-setInterval(()=>fetchRemote({silent:true}),120000);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden)fetchRemote({silent:true});});
-
 $('csvBtn').onclick=exportCSV;
 $('printBtn').onclick=()=>window.print();
 $('startDate').onchange=e=>{cfg.start=e.target.value;};
 $('endDate').onchange=e=>{cfg.end=e.target.value;};
 
-/* ================= 启动：缓存秒开（无缓存用内置默认）→ 后台静默同步 ================= */
+/* ================= 启动 ================= */
+$('startDate').value=cfg.start;$('endDate').value=cfg.end;
 const now=new Date();calY=now.getFullYear();calM=now.getMonth()+1;
-const cachedCfg=loadCache();
-if(cachedCfg){cfg=cachedCfg;generate();}
-else{cfg=JSON.parse(JSON.stringify(DEF));generate();showSync();}
-fetchRemote();
+generate();
 </script>
 </body>
 </html>

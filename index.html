@@ -448,7 +448,7 @@ function generate(){
 let lunarMode=localStorage.getItem('paiban_lunar')==='1';
 function applyMode(){
   document.body.classList.toggle('lunar',lunarMode);
-  renderTopbar();renderNext();renderCal();
+  renderTopbar();renderNext();renderCal();renderList();
   try{localStorage.setItem('paiban_lunar',lunarMode?'1':'0');}catch(e){}
 }
 /* topbar每次重渲染，按钮用事件委托绑定 */

@@ -45,7 +45,7 @@
   .card h3{font-size:15px;margin-bottom:10px}
   .nxt-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px dashed #f0f3f8;font-size:14px}
   .nxt-row:last-child{border:none}
-  .nxt-date{width:86px;color:#5a6a85;flex:none}
+  .nxt-date{min-width:86px;color:#5a6a85;flex:none}
   .nxt-lunar{display:block;font-size:10px;color:var(--mut);margin-top:1px}
   .nxt-team{flex:1;display:flex;align-items:center;gap:7px;min-width:0}
   .nxt-fest{flex:none;font-size:12px;color:var(--fest)}
@@ -88,6 +88,10 @@
   /* ===== 日历页 ===== */
   .cal-head{display:flex;align-items:center;justify-content:space-between;margin:4px 0 10px}
   .cal-head .ym{font-size:18px;font-weight:700}
+  .mode-row{display:flex;justify-content:center;margin-bottom:10px}
+  .mode-seg{display:inline-flex;background:#eef1f7;border-radius:14px;padding:3px}
+  .mode-seg button{border:none;background:transparent;font-size:14px;padding:7px 22px;border-radius:11px;color:#7a8699;font-weight:600;font-family:inherit}
+  .mode-seg button.on{background:var(--p);color:#fff;box-shadow:0 1px 4px rgba(61,90,241,.3)}
   .cal-btns{display:flex;gap:8px}
   .cbtn{width:38px;height:38px;border-radius:12px;background:#fff;border:1px solid var(--bd);font-size:16px;color:#42506b}
   .cbtn.wide{width:auto;padding:0 14px;font-size:13px}
@@ -109,6 +113,16 @@
   .cell.today .n{color:#fff}
   .cell.today .ln{color:#fff;font-weight:600}
   .cell.today .d{background:#fff!important}
+  /* 农历主显模式：主副互换，纯CSS order，不重排DOM */
+  body.lunar .cell .n{font-size:9px;color:var(--mut);font-weight:400;order:2;margin-top:1px}
+  body.lunar .cell .ln{font-size:13px;font-weight:600;color:var(--txt);order:1}
+  body.lunar .cell .d{order:3}
+  body.lunar .cell.we .ln{color:#d97706}
+  body.lunar .cell.we .n{color:#e0a45c}
+  body.lunar .cell.legal .ln{color:var(--fest)}
+  body.lunar .cell.today .ln{color:#fff}
+  body.lunar .cell.today .n{color:rgba(255,255,255,.85)}
+  body.lunar .cell.today .d{background:#fff!important}
   .cal-legend{display:flex;gap:14px;justify-content:center;font-size:12px;color:var(--mut);margin-top:12px;flex-wrap:wrap}
   .cal-legend span{display:flex;align-items:center;gap:5px}
 
@@ -202,6 +216,9 @@
         <button class="cbtn" id="calPrev">‹</button>
         <button class="cbtn" id="calNext">›</button>
       </div>
+    </div>
+    <div class="mode-row no-print">
+      <div class="mode-seg"><button id="modeSolar">公历为主</button><button id="modeLunar">农历为主</button></div>
     </div>
     <div class="cal-grid">
       <div class="cal-wk"><b>日</b><b>一</b><b>二</b><b>三</b><b>四</b><b>五</b><b>六</b></div>
@@ -421,18 +438,32 @@ function generate(){
   save();renderAll();
 }
 
+/* ================= 农历/公历主显切换 ================= */
+let lunarMode=localStorage.getItem('paiban_lunar')==='1';
+function applyMode(){
+  document.body.classList.toggle('lunar',lunarMode);
+  $('modeSolar').classList.toggle('on',!lunarMode);
+  $('modeLunar').classList.toggle('on',lunarMode);
+  renderTopbar();renderNext();
+  try{localStorage.setItem('paiban_lunar',lunarMode?'1':'0');}catch(e){}
+}
+$('modeSolar').onclick=()=>{if(lunarMode){lunarMode=false;applyMode();}};
+$('modeLunar').onclick=()=>{if(!lunarMode){lunarMode=true;applyMode();}};
+
 /* ================= 顶栏 & 今日 ================= */
 function renderTopbar(){
   const t=new Date();t.setHours(0,0,0,0);
   const y=t.getFullYear(),m=t.getMonth()+1,d=t.getDate();
   const idx=dutyIdx(t),fests=getFestivals(y,m,d),l=solarToLunar(y,m,d);
   const lun=l.day===1?lunarMonthName(l.month,l.isLeap):lunarDayName(l.day);
+  const fullLun=(l.isLeap?'闰':'')+lunarMonthName(l.month,false)+'月'+lunarDayName(l.day);
   const s=parseDate(cfg.start),diff=Math.round((t-s)/864e5);
   let sub='';
   if(diff<0)sub=`（${cfg.start} 开始值班，还有${-diff}天）`;
   else if(diff>days.length-1&&days.length)sub='';
+  const dateMain=lunarMode?`农历${fullLun} · ${y}年${m}月${d}日`:`${y}年${m}月${d}日 · 农历${lun}`;
   $('topbar').innerHTML=`
-    <div class="tb-date"><span>${y}年${m}月${d}日 · 农历${lun}</span><span>${WEEK[t.getDay()]}</span></div>
+    <div class="tb-date"><span>${dateMain}</span><span>${WEEK[t.getDay()]}</span></div>
     <div class="tb-duty"><span class="dot big" style="background:#fff"></span>
       <div>今日值班：${esc(teamName(cfg.teams[idx]))}<div class="sub">第${idx+1}组 · ${cfg.teams.length}天一轮</div></div></div>
     ${fests.length?`<div class="tb-fest">${fests.map(f=>f.emoji+' '+f.name).join('　')}</div>`:''}`;
@@ -446,7 +477,15 @@ function renderNext(){
     const dt=new Date(t);dt.setDate(dt.getDate()+i);
     const y=dt.getFullYear(),m=dt.getMonth()+1,d=dt.getDate();
     const idx=dutyIdx(dt),fests=getFestivals(y,m,d);
-    html+=`<div class="nxt-row"><span class="nxt-date">${fmtMD(dt)} ${WEEK[dt.getDay()]}<span class="nxt-lunar">农历${lunarStr(y,m,d)}</span></span>
+    let dateHtml;
+    if(lunarMode){
+      const l=solarToLunar(y,m,d);
+      const fullLun=(l.isLeap?'闰':'')+lunarMonthName(l.month,false)+'月'+lunarDayName(l.day);
+      dateHtml=`农历${fullLun} ${WEEK[dt.getDay()]}<span class="nxt-lunar">${fmtMD(dt)}</span>`;
+    }else{
+      dateHtml=`${fmtMD(dt)} ${WEEK[dt.getDay()]}<span class="nxt-lunar">农历${lunarStr(y,m,d)}</span>`;
+    }
+    html+=`<div class="nxt-row"><span class="nxt-date">${dateHtml}</span>
       <span class="nxt-team"><span class="dot" style="background:${colorOf(idx)}"></span>${esc(teamName(cfg.teams[idx]))}</span>
       <span class="nxt-fest">${fests.map(f=>f.emoji).join('')}</span></div>`;
   }
@@ -532,6 +571,7 @@ function renderTeamInputs(){
   $('startTeam').value=cfg.startIdx;
 }
 function renderAll(){
+  applyMode();
   renderTopbar();renderNext();renderChips();renderList();renderCal();renderStats();renderTeamInputs();
 }
 

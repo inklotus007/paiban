@@ -63,6 +63,7 @@
     color:var(--pd);background:linear-gradient(135deg,rgba(79,110,247,.10),rgba(109,139,255,.07));
     padding:8px 14px;border-radius:12px}
   .month-h::before{content:'';width:4px;height:16px;background:var(--p);border-radius:2px;flex:none}
+  .mh-sub{margin-left:auto;font-size:11px;font-weight:400;opacity:.65;letter-spacing:.3px}
   .day-card{background:#fff;border-radius:14px;padding:12px 14px;margin-bottom:10px;
     display:flex;align-items:center;gap:12px;box-shadow:0 1px 6px rgba(31,45,61,.05);position:relative;overflow:hidden}
   .day-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--tc,#ddd)}
@@ -508,14 +509,32 @@ function renderChips(){
       <span class="dot" style="background:${colorOf(i)};margin-right:5px"></span>${esc(teamName(t))}</button>`).join('');
 }
 function renderList(){
-  const byMonth=new Map();
-  days.forEach(r=>{const k=r.y+'-'+r.m;(byMonth.get(k)||byMonth.set(k,[]).get(k)).push(r);});
+  const groups=[];const gIdx=new Map();
+  days.forEach(r=>{
+    let key,label;
+    if(lunarMode){
+      const l=solarToLunar(r.y,r.m,r.d);
+      key='L'+l.year+'-'+(l.isLeap?'1':'0')+l.month;
+      label='农历'+(l.isLeap?'闰':'')+lunarMonthName(l.month,l.isLeap);
+    }else{
+      key='S'+r.y+'-'+r.m;
+      label=r.y+'年'+r.m+'月';
+    }
+    if(!gIdx.has(key)){gIdx.set(key,groups.length);groups.push({label,items:[],first:r,last:r});}
+    const g=groups[gIdx.get(key)];
+    g.items.push(r);g.last=r;
+  });
   const today=new Date();today.setHours(0,0,0,0);
   let html='';
-  byMonth.forEach((list,key)=>{
-    const[y,m]=key.split('-').map(Number);
-    html+=`<div class="month-h">${y}年${m}月</div>`;
-    list.forEach(r=>{
+  groups.forEach(g=>{
+    if(lunarMode){
+      const fs=g.first.m+'/'+g.first.d, fe=g.last.m+'/'+g.last.d;
+      const range=fs===fe?fs:fs+' - '+fe;
+      html+=`<div class="month-h"><span>${g.label}</span><span class="mh-sub">${range}</span></div>`;
+    }else{
+      html+=`<div class="month-h"><span>${g.label}</span></div>`;
+    }
+    g.items.forEach(r=>{
       const isT=r.date.getTime()===today.getTime();
       const cls='day-card'+(r.legal?' legal':'')+(isT?' today':'');
       html+=`<div class="${cls}" style="--tc:${colorOf(r.teamIdx)}" data-k="${r.y}-${r.m}-${r.d}">

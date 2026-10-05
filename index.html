@@ -456,7 +456,7 @@ function renderTopbar(){
   const y=t.getFullYear(),m=t.getMonth()+1,d=t.getDate();
   const idx=dutyIdx(t),fests=getFestivals(y,m,d),l=solarToLunar(y,m,d);
   const lun=l.day===1?lunarMonthName(l.month,l.isLeap):lunarDayName(l.day);
-  const fullLun=(l.isLeap?'闰':'')+lunarMonthName(l.month,false)+'月'+lunarDayName(l.day);
+  const fullLun=(l.isLeap?'闰':'')+lunarMonthName(l.month,false)+lunarDayName(l.day);
   const s=parseDate(cfg.start),diff=Math.round((t-s)/864e5);
   let sub='';
   if(diff<0)sub=`（${cfg.start} 开始值班，还有${-diff}天）`;
@@ -480,7 +480,7 @@ function renderNext(){
     let dateHtml;
     if(lunarMode){
       const l=solarToLunar(y,m,d);
-      const fullLun=(l.isLeap?'闰':'')+lunarMonthName(l.month,false)+'月'+lunarDayName(l.day);
+      const fullLun=(l.isLeap?'闰':'')+lunarMonthName(l.month,false)+lunarDayName(l.day);
       dateHtml=`农历${fullLun} ${WEEK[dt.getDay()]}<span class="nxt-lunar">${fmtMD(dt)}</span>`;
     }else{
       dateHtml=`${fmtMD(dt)} ${WEEK[dt.getDay()]}<span class="nxt-lunar">农历${lunarStr(y,m,d)}</span>`;

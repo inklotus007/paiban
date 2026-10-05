@@ -450,7 +450,7 @@ function applyMode(){
   document.body.classList.toggle('lunar',lunarMode);
   $('modeSolar').classList.toggle('on',!lunarMode);
   $('modeLunar').classList.toggle('on',lunarMode);
-  renderTopbar();renderNext();
+  renderTopbar();renderNext();renderCal();
   try{localStorage.setItem('paiban_lunar',lunarMode?'1':'0');}catch(e){}
 }
 $('modeSolar').onclick=()=>{if(lunarMode){lunarMode=false;applyMode();}};

@@ -46,6 +46,7 @@
   .nxt-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px dashed #f0f3f8;font-size:14px}
   .nxt-row:last-child{border:none}
   .nxt-date{width:86px;color:#5a6a85;flex:none}
+  .nxt-lunar{display:block;font-size:10px;color:var(--mut);margin-top:1px}
   .nxt-team{flex:1;display:flex;align-items:center;gap:7px;min-width:0}
   .nxt-fest{flex:none;font-size:12px;color:var(--fest)}
 
@@ -97,12 +98,15 @@
   .cell{aspect-ratio:1/1.05;display:flex;flex-direction:column;align-items:center;justify-content:center;
     border-radius:12px;position:relative}
   .cell .n{font-size:15px;font-weight:600}
+  .cell .ln{font-size:9px;color:var(--mut);line-height:1.2;margin-top:1px;max-width:100%;overflow:hidden;white-space:nowrap}
   .cell.blank .n{visibility:hidden}
   .cell .d{width:5px;height:5px;border-radius:50%;margin-top:3px}
   .cell.we .n{color:#d97706}
+  .cell.we .ln{color:#e0a45c}
   .cell.legal .n{color:var(--fest)}
   .cell.today{background:var(--p)}
   .cell.today .n{color:#fff}
+  .cell.today .ln{color:rgba(255,255,255,.85)}
   .cell.today .d{background:#fff!important}
   .cal-legend{display:flex;gap:14px;justify-content:center;font-size:12px;color:var(--mut);margin-top:12px;flex-wrap:wrap}
   .cal-legend span{display:flex;align-items:center;gap:5px}
@@ -441,7 +445,7 @@ function renderNext(){
     const dt=new Date(t);dt.setDate(dt.getDate()+i);
     const y=dt.getFullYear(),m=dt.getMonth()+1,d=dt.getDate();
     const idx=dutyIdx(dt),fests=getFestivals(y,m,d);
-    html+=`<div class="nxt-row"><span class="nxt-date">${fmtMD(dt)} ${WEEK[dt.getDay()]}</span>
+    html+=`<div class="nxt-row"><span class="nxt-date">${fmtMD(dt)} ${WEEK[dt.getDay()]}<span class="nxt-lunar">农历${lunarStr(y,m,d)}</span></span>
       <span class="nxt-team"><span class="dot" style="background:${colorOf(idx)}"></span>${esc(teamName(cfg.teams[idx]))}</span>
       <span class="nxt-fest">${fests.map(f=>f.emoji).join('')}</span></div>`;
   }
@@ -498,7 +502,7 @@ function renderCal(){
     const isT=dt.getTime()===today.getTime();
     const hi=holidayInfo(calY,calM,d),isWork=!!(hi&&hi.work);
     const cls='cell'+(dt.getDay()===0||dt.getDay()===6?' we':'')+(legal?' legal':'')+(isT?' today':'');
-    html+=`<div class="${cls}" data-k="${calY}-${calM}-${d}"><span class="n">${d}</span>${isWork?'<span class="workmark">班</span>':''}
+    html+=`<div class="${cls}" data-k="${calY}-${calM}-${d}"><span class="n">${d}</span><span class="ln">${lunarStr(calY,calM,d)}</span>${isWork?'<span class="workmark">班</span>':''}
       <span class="d" style="background:${colorOf(idx)}"></span></div>`;
   }
   $('calDays').innerHTML=html;
